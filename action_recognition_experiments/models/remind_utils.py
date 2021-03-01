@@ -130,14 +130,20 @@ def fit_pq(feats_base_init, labels_base_init, item_ix_base_init, num_channels, n
     for i in range(0, num_samples, mb):
         start = i
         end = min(start + mb, num_samples)
-        data_batch = feats_base_init[start:end]
+        data_start = num_instances * i
+        data_end = min(data_start + num_instances * mb, num_instances * num_samples)
+        
+        print('data %s-%s/%s, labels %s-%s/%s' %(data_start, data_end, len(feats_base_init), start, end, len(labels_base_init)))
+
+        data_batch = feats_base_init[data_start:data_end]
         batch_labels = labels_base_init[start:end]
         batch_item_ixs = item_ix_base_init[start:end]
 
         data_batch = np.transpose(data_batch, (0, 2, 3, 1))
         data_batch = np.reshape(data_batch, (-1, num_channels))
         codes = pq.compute_codes(data_batch)
-        codes = np.reshape(codes, (-1, spatial_feat_dim, spatial_feat_dim, num_codebooks))
+        spatial_dims = [int(i) for i in spatial_feat_dim.split(',')]
+        codes = np.reshape(codes, (-1, *spatial_dims, num_codebooks))
 
         # put codes and labels into buffer (dictionary)
         for j in range(len(batch_labels)):

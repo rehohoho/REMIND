@@ -3,16 +3,24 @@ import torch
 import json
 import os
 from action_recognition_experiments.models.REMINDModel import REMINDModel
+from action_recognition_experiments.feeders.feeder import get_data_loader
 from action_recognition_experiments.models.remind_utils import *
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
 
-def get_data_loader(images_dir, label_dir, split, min_class, max_class, batch_size=128, return_item_ix=False):
-    data_loader = utils_imagenet.get_imagenet_data_loader(images_dir + '/' + split, label_dir, split,
-                                                          batch_size=batch_size, shuffle=False, min_class=min_class,
-                                                          max_class=max_class, return_item_ix=return_item_ix)
-    return data_loader
+def get_dataloader(args, split, min_class, max_class):
+    if split == 'val':
+        loader, _ = get_data_loader(args.val_data_path, args.val_label_path, args.label_dir,
+                                    split='val', dataset_name='nturgbd60', 
+                                    min_class=min_class, max_class=max_class, shuffle=False, 
+                                    batch_size=args.batch_size, num_workers=args.batch_size)
+    elif split == 'train':
+        loader, _ = get_data_loader(args.train_data_path, args.train_label_path, args.label_dir,
+                                    split='train', dataset_name='nturgbd60', 
+                                    min_class=min_class, max_class=max_class, shuffle=False, 
+                                    batch_size=args.batch_size, num_workers=args.batch_size)
+    return loader
 
 
 def compute_accuracies(loader, remind, pq):
@@ -22,20 +30,18 @@ def compute_accuracies(loader, remind, pq):
 
 
 def update_accuracies(args, curr_max_class, remind, pq, accuracies):
-    base_test_loader = get_data_loader(args.images_dir, args.label_dir, 'val', min_class=args.min_class,
-                                       max_class=args.base_init_classes)
+    base_test_loader = get_dataloader(args, 'val', args.min_class, args.base_init_classes)
     base_probas, base_top1, base_top5 = compute_accuracies(base_test_loader, remind, pq)
     print('\nBase Init Classes (%d-%d): top1=%0.2f%% -- top5=%0.2f%%' % (
         args.min_class, args.base_init_classes - 1, base_top1, base_top5))
 
-    non_base_classes_test_loader = get_data_loader(args.images_dir, args.label_dir, 'val', args.base_init_classes,
-                                                   curr_max_class)
+    non_base_classes_test_loader = get_dataloader(args, 'val', args.base_init_classes, curr_max_class)
     non_base_probas, non_base_top1, non_base_top5 = compute_accuracies(non_base_classes_test_loader, remind, pq)
 
     print('Non-Base Init Classes (%d-%d): top1=%0.2f%% -- top5=%0.2f%%' % (
         args.base_init_classes, curr_max_class - 1, non_base_top1, non_base_top5))
 
-    seen_classes_test_loader = get_data_loader(args.images_dir, args.label_dir, 'val', args.min_class, curr_max_class)
+    seen_classes_test_loader = get_dataloader(args, 'val', args.min_class, curr_max_class)
     seen_probas, seen_top1, seen_top5 = compute_accuracies(seen_classes_test_loader, remind, pq)
     print('All Seen Classes (%d-%d): top1=%0.2f%% -- top5=%0.2f%%' % (
         args.min_class, curr_max_class - 1, seen_top1, seen_top5))
@@ -65,8 +71,7 @@ def streaming(args, remind):
 
         # validate performance from previous increment
         print('Previous model loaded...computing previous accuracy as sanity check...')
-        test_loader = get_data_loader(args.images_dir, args.label_dir, 'val', args.min_class, args.streaming_min_class,
-                                      batch_size=args.batch_size)
+        test_loader = get_dataloader(args, 'val', args.min_class, args.streaming_min_class)
         _, probas, y_test = remind.predict(test_loader, pq)
         update_accuracies(args, curr_max_class=args.streaming_min_class, remind=remind, pq=pq, accuracies=accuracies)
     else:
@@ -81,8 +86,7 @@ def streaming(args, remind):
                                                                           args.spatial_feat_dim, args.num_codebooks,
                                                                           args.codebook_size, counter=counter, batch_size=args.batch_size)
 
-        initial_test_loader = get_data_loader(args.images_dir, args.label_dir, 'val', min_class=args.min_class,
-                                              max_class=args.base_init_classes)
+        initial_test_loader = get_dataloader(args, 'val', args.min_class, args.base_init_classes)
         print('\nComputing base accuracies...')
         base_probas, base_top1, base_top5 = compute_accuracies(initial_test_loader, remind, pq)
 
@@ -98,10 +102,7 @@ def streaming(args, remind):
         max_class = class_ix + args.class_increment
 
         print('\nTraining classes {}-{}.'.format(class_ix, max_class))
-
-        train_loader_curr = get_data_loader(args.images_dir, args.label_dir, 'train', class_ix, max_class,
-                                            batch_size=args.batch_size,
-                                            return_item_ix=True)
+        train_loader_curr = get_dataloader(args, 'train', class_ix, max_class)
 
         # fit model with rehearsal
         remind.fit_incremental_batch(train_loader_curr, latent_dict, pq, rehearsal_ixs=rehearsal_ixs,
@@ -113,14 +114,12 @@ def streaming(args, remind):
         remind.save(max_class, save_full_path, rehearsal_ixs, latent_dict, class_id_to_item_ix_dict, pq)
 
         # perform inference
-        test_loader = get_data_loader(args.images_dir, args.label_dir, 'val', args.min_class, max_class,
-                                      batch_size=args.batch_size)
+        test_loader = get_dataloader(args, 'val', args.min_class, max_class)
         _, probas, y_test = remind.predict(test_loader, pq)
         update_accuracies(args, curr_max_class=max_class, remind=remind, pq=pq, accuracies=accuracies)
 
     # final accuracy
-    test_loader = get_data_loader(args.images_dir, args.label_dir, 'val', args.min_class, args.streaming_max_class,
-                                  batch_size=args.batch_size)
+    test_loader = get_dataloader(args, 'val', args.min_class, args.streaming_max_class)
     _, probas, y_test = remind.predict(test_loader, pq)
     top1, top5 = utils.accuracy(probas, y_test, topk=(1, 5))
     print('\nFinal: top1=%0.2f%% -- top5=%0.2f%%' % (top1, top5))
