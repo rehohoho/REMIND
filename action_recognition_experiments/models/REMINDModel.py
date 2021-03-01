@@ -1,16 +1,21 @@
 import time
-import torch
-import numpy as np
-import torch.optim as optim
-import torch.nn as nn
-import torch.nn.functional as F
 import sys
 import random
 import os
-import faiss
 import pickle
+import importlib
+
+import yaml
+import numpy as np
+import torch
+import torch.optim as optim
+import torch.nn as nn
+import torch.nn.functional as F
+import faiss
+
 import image_classification_experiments.utils as utils
 from image_classification_experiments.retrieve_any_layer import ModelWrapper
+from action_recognition_experiments.models.remind_utils import build_classifier
 
 sys.setrecursionlimit(10000)
 
@@ -38,17 +43,20 @@ class REMINDModel(object):
     The REMIND class for streaming training with replay from our paper (https://arxiv.org/abs/1910.02509).
     """
 
-    def __init__(self, num_classes, classifier_G='ResNet18ClassifyAfterLayer4_1',
+    def __init__(self, num_classes, classifier_G='ResNet18ClassifyAfterLayer4_1', classifier_G_args='{}',
                  extract_features_from='model.layer4.0',
-                 classifier_F='ResNet18_StartAt_Layer4_1', classifier_ckpt=None, weight_decay=1e-5, lr_mode=None,
+                 classifier_F='ResNet18_StartAt_Layer4_1', classifier_F_args='{}',
+                 classifier_ckpt=None, weight_decay=1e-5, lr_mode=None,
                  lr_step_size=100, start_lr=0.1, end_lr=0.001, lr_gamma=0.5, num_samples=50, use_mixup=False,
                  mixup_alpha=0.2, grad_clip=None, num_channels=512, num_feats=7, num_codebooks=32, codebook_size=256,
                  use_random_resize_crops=True, max_buffer_size=None):
 
         # make the classifier
-        self.classifier_F = utils.build_classifier(classifier_F, classifier_ckpt, num_classes=num_classes)
-        core_model = utils.build_classifier(classifier_G, classifier_ckpt, num_classes=None)
+        self.classifier_F = build_classifier(classifier_F, classifier_F_args, None)
+        print('\nclassifier f', self.classifier_F.__str__())
+        core_model = build_classifier(classifier_G, classifier_G_args, classifier_ckpt)
         self.classifier_G = ModelWrapper(core_model, output_layer_names=[extract_features_from], return_single=True)
+        print('\nclassifier g', self.classifier_G.__str__())
 
         # make the optimizer
         trainable_params = self.get_trainable_params(self.classifier_F, start_lr)

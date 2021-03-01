@@ -1,11 +1,68 @@
-import numpy as np
 import pickle
-import torch
-from torch.utils.data import Dataset
+import os
 import sys
 
-sys.path.extend(['../'])
+import numpy as np
+import torch
+import torchvision.transforms as transforms
+import torchvision.datasets as datasets
+from torch.utils.data import Dataset
 from feeders import tools
+
+sys.path.extend(['../'])
+
+
+def filter_by_class(labels, min_class, max_class):
+    """
+    Return the indices for the desired classes in [min_class, max_class)
+    :param labels: class indices from numpy files
+    :param min_class: minimum class included
+    :param max_class: maximum class excluded
+    :return: list of indices
+    """
+    ixs = list(np.where(np.logical_and(labels >= min_class, labels < max_class))[0])
+    return ixs
+
+
+def get_data_loader(data_path, label_path, label_dir,
+                    split, dataset_name='nturgbd60', 
+                    min_class=0, max_class=None,
+                    shuffle=False, sampler=None, batch_sampler=None,
+                    batch_size=1, num_workers=1):
+
+    dataset = Feeder(data_path=data_path, label_path=label_path)
+    
+    # filter out only the indices for the desired class
+    if max_class is not None:
+        _labels = np.load(
+            os.path.join(label_dir, '{}_{}_labels.npy'.format(dataset_name, split)))
+        idxs = filter_by_class(_labels, min_class=min_class, max_class=max_class)
+
+    if batch_sampler is None and sampler is None:
+        if shuffle:
+            sampler = torch.utils.data.sampler.SubsetRandomSampler(idxs)
+        else:
+            sampler = IndexSampler(idxs)
+        batch_sampler = torch.utils.data.sampler.BatchSampler(sampler, batch_size=batch_size, drop_last=False)
+
+    loader = torch.utils.data.DataLoader(dataset, num_workers=num_workers, batch_sampler=batch_sampler)
+    print('\nLoading the ' + split + ' data ... ({} samples)'.format(len(idxs)))
+    
+    return loader
+
+
+class IndexSampler(torch.utils.data.Sampler):
+    """Samples elements sequentially, always in the same order.
+    """
+
+    def __init__(self, indices):
+        self.indices = indices
+
+    def __iter__(self):
+        return iter(self.indices)
+
+    def __len__(self):
+        return len(self.indices)
 
 
 class Feeder(Dataset):

@@ -3,7 +3,7 @@ import torch
 import json
 import os
 from action_recognition_experiments.models.REMINDModel import REMINDModel
-from action_recognition_experiments.models.imagenet_base_initialization import *
+from action_recognition_experiments.models.remind_utils import *
 
 torch.multiprocessing.set_sharing_strategy('file_system')
 
@@ -71,12 +71,11 @@ def streaming(args, remind):
         update_accuracies(args, curr_max_class=args.streaming_min_class, remind=remind, pq=pq, accuracies=accuracies)
     else:
         print('\nPerforming base initialization...')
-        feat_data, label_data, item_ix_data = extract_base_init_features(args.images_dir, args.label_dir,
-                                                                         args.extract_features_from,
-                                                                         args.classifier_ckpt,
-                                                                         args.base_arch, args.base_init_classes,
-                                                                         args.num_channels,
-                                                                         args.spatial_feat_dim)
+        feat_data, label_data, item_ix_data = extract_base_init_features(args.train_data_path, args.train_label_path, args.label_dir,
+                                                                         args.extract_features_from, args.classifier_ckpt,
+                                                                         args.base_arch, args.base_model_args, 
+                                                                         args.base_init_classes, args.num_channels,
+                                                                         args.spatial_feat_dim, args.batch_size)
         pq, latent_dict, rehearsal_ixs, class_id_to_item_ix_dict = fit_pq(feat_data, label_data, item_ix_data,
                                                                           args.num_channels,
                                                                           args.spatial_feat_dim, args.num_codebooks,
@@ -133,20 +132,27 @@ if __name__ == '__main__':
     # directories and names
     parser.add_argument('--expt_name', type=str)  # name of the experiment
     parser.add_argument('--label_dir', type=str, default=None)  # directory for numpy label files
-    parser.add_argument('--images_dir', type=str, default=None)  # directory for ImageNet train/val folders
+    parser.add_argument('--train_data_path')
+    parser.add_argument('--train_label_path')
+    parser.add_argument('--val_data_path')
+    parser.add_argument('--val_label_path')
     parser.add_argument('--save_dir', type=str, required=False)  # directory for saving results
     parser.add_argument('--resume_full_path', type=str, default=None)  # directory of previous model to load
 
     # network parameters
-    parser.add_argument('--base_arch', type=str, default='ResNet18ClassifyAfterLayer4_1')  # architecture for G
-    parser.add_argument('--classifier', type=str, default='ResNet18_StartAt_Layer4_1')  # architecture for F
+    parser.add_argument('--base_arch', type=str, default='AGCN_ClassifyAfterLevel')  # architecture for G
+    parser.add_argument('--base_model_args', default=None,
+                        help='a JSON string which specifies model arguments')
+    parser.add_argument('--classifier', type=str, default='AGCN_StartAtLevel')  # architecture for F
+    parser.add_argument('--classifier_model_args', default=None,
+                        help='a JSON string which specifies model arguments')
     parser.add_argument('--classifier_ckpt', type=str, required=True)  # base initialization ckpt
     parser.add_argument('--extract_features_from', type=str,
-                        default='model.layer4.0')  # name of the layer to extract features
+                        default='levels.8')  # name of the layer to extract features
     parser.add_argument('--num_channels', type=int, default=512)  # number of channels where features are extracted
     parser.add_argument('--spatial_feat_dim', type=int, default=7)  # spatial dimension of features being extracted
     parser.add_argument('--weight_decay', type=float, default=1e-5)  # weight decay for network
-    parser.add_argument('--batch_size', type=int, default=128)  # testing batch size
+    parser.add_argument('--batch_size', type=int, default=8)  # testing batch size
 
     # pq parameters
     parser.add_argument('--num_codebooks', type=int, default=32)
@@ -169,12 +175,12 @@ if __name__ == '__main__':
     parser.add_argument('--mixup_alpha', type=float, default=0.1)
 
     # streaming setup
-    parser.add_argument('--num_classes', type=int, default=1000)  # total number of classes
+    parser.add_argument('--num_classes', type=int, default=60)  # total number of classes
     parser.add_argument('--min_class', type=int, default=0)  # overall minimum class
-    parser.add_argument('--base_init_classes', type=int, default=100)  # number of base init classes
-    parser.add_argument('--class_increment', type=int, default=100)  # how often to evaluate
-    parser.add_argument('--streaming_min_class', type=int, default=100)  # class to begin stream training
-    parser.add_argument('--streaming_max_class', type=int, default=1000)  # class to end stream training
+    parser.add_argument('--base_init_classes', type=int, default=6)  # number of base init classes
+    parser.add_argument('--class_increment', type=int, default=6)  # how often to evaluate
+    parser.add_argument('--streaming_min_class', type=int, default=6)  # class to begin stream training
+    parser.add_argument('--streaming_max_class', type=int, default=60)  # class to end stream training
 
     # get arguments and print them out and make any necessary directories
     args = parser.parse_args()
@@ -190,8 +196,8 @@ if __name__ == '__main__':
     print("Arguments {}".format(json.dumps(vars(args), indent=4, sort_keys=True)))
 
     # make model and begin stream training
-    remind = REMINDModel(num_classes=args.num_classes, classifier_G=args.base_arch,
-                         extract_features_from=args.extract_features_from, classifier_F=args.classifier,
+    remind = REMINDModel(num_classes=args.num_classes, classifier_G=args.base_arch, classifier_G_args=args.base_model_args,
+                         extract_features_from=args.extract_features_from, classifier_F=args.classifier, classifier_F_args=args.classifier_model_args,
                          classifier_ckpt=args.classifier_ckpt,
                          weight_decay=args.weight_decay, lr_mode=args.lr_mode, lr_step_size=args.lr_step_size,
                          start_lr=args.start_lr, end_lr=args.end_lr, lr_gamma=args.lr_gamma,

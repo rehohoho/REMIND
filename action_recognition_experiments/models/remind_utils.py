@@ -1,14 +1,34 @@
 import numpy as np
 import time
+import importlib
 from collections import defaultdict
+
 import faiss
-import image_classification_experiments.utils_imagenet as utils_imagenet
+import yaml
+import torch
 import image_classification_experiments.utils as utils
 from image_classification_experiments.retrieve_any_layer import ModelWrapper
-from image_classification_experiments.utils import build_classifier
+from action_recognition_experiments.feeders.feeder import get_data_loader
 
 
-def extract_features(model, data_loader, data_len, num_channels=512, spatial_feat_dim=7):
+def build_classifier(base_arch, base_model_args, classifier_ckpt):
+    base_model_args = yaml.load(base_model_args, Loader=yaml.FullLoader)
+    classifier = getattr(importlib.import_module('models.agcn'), base_arch)(*base_model_args.values())
+
+    if classifier_ckpt is None:
+        print("Will not resume any checkpoints!")
+    else:
+        resumed = torch.load(classifier_ckpt)
+        if 'state_dict' in resumed:
+            state_dict_key = 'state_dict'
+        else:
+            state_dict_key = 'model_state'
+        print("Resuming with {}".format(classifier_ckpt))
+        utils.safe_load_dict(classifier, resumed[state_dict_key], should_resume_all_params=True)
+    return classifier
+
+
+def extract_features(model, data_loader, data_len, num_channels, spatial_feat_dim):
     """
     Extract image features and put them into arrays.
     :param model: pre-trained model to extract features
@@ -22,11 +42,13 @@ def extract_features(model, data_loader, data_len, num_channels=512, spatial_fea
     model.eval()
     model.cuda()
 
+    print('Allocating space for %s features, labels, item idxs.' %data_len)
     # allocate space for features and labels
     features_data = np.empty((data_len, num_channels, spatial_feat_dim, spatial_feat_dim), dtype=np.float32)
     labels_data = np.empty((data_len, 1), dtype=np.int)
     item_ixs_data = np.empty((data_len, 1), dtype=np.int)
 
+    print('Encoding features and labels into arrays.')
     # put features and labels into arrays
     start_ix = 0
     for batch_ix, (batch_x, batch_y, batch_item_ixs) in enumerate(data_loader):
@@ -36,18 +58,25 @@ def extract_features(model, data_loader, data_len, num_channels=512, spatial_fea
         labels_data[start_ix:end_ix] = np.atleast_2d(batch_y.numpy().astype(np.int)).transpose()
         item_ixs_data[start_ix:end_ix] = np.atleast_2d(batch_item_ixs.numpy().astype(np.int)).transpose()
         start_ix = end_ix
+
+        print('Encoding ... %s/%s' %(start_ix, data_len))
+    
+    print('Done')
+
     return features_data, labels_data, item_ixs_data
 
 
-def extract_base_init_features(imagenet_path, label_dir, extract_features_from, classifier_ckpt, arch,
-                               max_class, num_channels, spatial_feat_dim, batch_size=128):
-    core_model = build_classifier(arch, classifier_ckpt, num_classes=None)
+def extract_base_init_features(data_path, label_path, label_dir, 
+                               extract_features_from, classifier_ckpt, arch, arch_args,
+                               max_class, num_channels, spatial_feat_dim, batch_size):
+    core_model = build_classifier(arch, arch_args, classifier_ckpt)
 
     model = ModelWrapper(core_model, output_layer_names=[extract_features_from], return_single=True)
 
-    base_train_loader = utils_imagenet.get_imagenet_data_loader(imagenet_path + '/train', label_dir, split='train',
-                                                                batch_size=batch_size, shuffle=False, min_class=0,
-                                                                max_class=max_class, return_item_ix=True)
+    base_train_loader = get_data_loader(data_path, label_path, label_dir,
+                                        split='train', dataset_name='nturgbd60', 
+                                        min_class=0, max_class=max_class, shuffle=False, 
+                                        batch_size=batch_size, num_workers=batch_size)
 
     base_train_features, base_train_labels, base_item_ixs = extract_features(model, base_train_loader,
                                                                              len(base_train_loader.dataset),
