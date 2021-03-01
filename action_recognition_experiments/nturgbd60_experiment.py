@@ -74,12 +74,12 @@ def streaming(args, remind):
         feat_data, label_data, item_ix_data = extract_base_init_features(args.train_data_path, args.train_label_path, args.label_dir,
                                                                          args.extract_features_from, args.classifier_ckpt,
                                                                          args.base_arch, args.base_model_args, 
-                                                                         args.base_init_classes, args.num_channels,
+                                                                         args.base_init_classes, args.num_channels, args.num_instances,
                                                                          args.spatial_feat_dim, args.batch_size)
         pq, latent_dict, rehearsal_ixs, class_id_to_item_ix_dict = fit_pq(feat_data, label_data, item_ix_data,
-                                                                          args.num_channels,
+                                                                          args.num_channels, args.num_instances,
                                                                           args.spatial_feat_dim, args.num_codebooks,
-                                                                          args.codebook_size, counter=counter)
+                                                                          args.codebook_size, counter=counter, batch_size=args.batch_size)
 
         initial_test_loader = get_data_loader(args.images_dir, args.label_dir, 'val', min_class=args.min_class,
                                               max_class=args.base_init_classes)
@@ -149,7 +149,8 @@ if __name__ == '__main__':
     parser.add_argument('--classifier_ckpt', type=str, required=True)  # base initialization ckpt
     parser.add_argument('--extract_features_from', type=str,
                         default='levels.8')  # name of the layer to extract features
-    parser.add_argument('--num_channels', type=int, default=512)  # number of channels where features are extracted
+    parser.add_argument('--num_channels', type=int, default=256)  # number of channels where features are extracted
+    parser.add_argument('--num_instances', type=int, default=2)  # number of channels where features are extracted
     parser.add_argument('--spatial_feat_dim', type=str, default='7,7')  # spatial dimension of features being extracted
     parser.add_argument('--weight_decay', type=float, default=1e-5)  # weight decay for network
     parser.add_argument('--batch_size', type=int, default=8)  # testing batch size
@@ -202,7 +203,7 @@ if __name__ == '__main__':
                          weight_decay=args.weight_decay, lr_mode=args.lr_mode, lr_step_size=args.lr_step_size,
                          start_lr=args.start_lr, end_lr=args.end_lr, lr_gamma=args.lr_gamma,
                          num_samples=args.rehearsal_samples, use_mixup=args.use_mixup, mixup_alpha=args.mixup_alpha,
-                         grad_clip=None, num_channels=args.num_channels, num_feats=args.spatial_feat_dim,
+                         grad_clip=None, num_channels=args.num_channels, num_instances=args.num_instances, num_feats=args.spatial_feat_dim,
                          num_codebooks=args.num_codebooks, codebook_size=args.codebook_size,
                          use_random_resize_crops=args.use_random_resized_crops,
                          max_buffer_size=args.max_buffer_size)

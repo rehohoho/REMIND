@@ -162,9 +162,9 @@ class Model(nn.Module):
     def forward(self, x):
         N, C, T, V, M = x.size()
 
-        x = x.permute(0, 4, 3, 1, 2).contiguous().view(N, M * V * C, T)
+        x = x.permute(0, 4, 3, 1, 2).contiguous().view(N, M * V * C, T) # (1, 3, 300, 25, 2) -> (1, 2, 25, 3, 300) -> (1, 150, 300)
         x = self.data_bn(x)
-        x = x.view(N, M, V, C, T).permute(0, 1, 3, 4, 2).contiguous().view(N * M, C, T, V)
+        x = x.view(N, M, V, C, T).permute(0, 1, 3, 4, 2).contiguous().view(N * M, C, T, V) # -> (1, 2, 25, 3, 300) -> (2, 3, 300, 25)
 
         for level in self.levels:
             x = level(x)

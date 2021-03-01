@@ -48,7 +48,7 @@ class REMINDModel(object):
                  classifier_F='ResNet18_StartAt_Layer4_1', classifier_F_args='{}',
                  classifier_ckpt=None, weight_decay=1e-5, lr_mode=None,
                  lr_step_size=100, start_lr=0.1, end_lr=0.001, lr_gamma=0.5, num_samples=50, use_mixup=False,
-                 mixup_alpha=0.2, grad_clip=None, num_channels=512, num_feats='7,7', num_codebooks=32, codebook_size=256,
+                 mixup_alpha=0.2, grad_clip=None, num_channels=512, num_instances=2, num_feats='7,7', num_codebooks=32, codebook_size=256,
                  use_random_resize_crops=True, max_buffer_size=None):
 
         # make the classifier

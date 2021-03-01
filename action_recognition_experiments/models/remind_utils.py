@@ -28,7 +28,7 @@ def build_classifier(base_arch, base_model_args, classifier_ckpt):
     return classifier
 
 
-def extract_features(model, data_loader, data_len, num_channels, spatial_feat_dim):
+def extract_features(model, data_loader, data_len, num_channels, num_instances, spatial_feat_dim):
     """
     Extract image features and put them into arrays.
     :param model: pre-trained model to extract features
@@ -44,22 +44,28 @@ def extract_features(model, data_loader, data_len, num_channels, spatial_feat_di
 
     print('Allocating space for %s features, labels, item idxs.' %data_len)
     # allocate space for features and labels
-    features_data = np.empty((data_len, num_channels, *[int(i) for i in spatial_feat_dim.split(',')]), dtype=np.float32)
+    spatial_dims = [int(i) for i in spatial_feat_dim.split(',')]
+    features_data = np.empty((num_instances*data_len, num_channels, *spatial_dims), dtype=np.float32)
     labels_data = np.empty((data_len, 1), dtype=np.int)
     item_ixs_data = np.empty((data_len, 1), dtype=np.int)
 
     print('Encoding features and labels into arrays.')
     # put features and labels into arrays
-    start_ix = 0
+    feat_start_ix = 0
+    label_start_ix = 0
     for batch_ix, (batch_x, batch_y, batch_item_ixs) in enumerate(data_loader):
         batch_feats = model(batch_x.cuda())
-        end_ix = start_ix + len(batch_feats)
-        features_data[start_ix:end_ix] = batch_feats.cpu().numpy()
-        labels_data[start_ix:end_ix] = np.atleast_2d(batch_y.numpy().astype(np.int)).transpose()
-        item_ixs_data[start_ix:end_ix] = np.atleast_2d(batch_item_ixs.numpy().astype(np.int)).transpose()
-        start_ix = end_ix
+        feat_end_ix = feat_start_ix + len(batch_feats)
+        label_end_ix = label_start_ix + len(batch_feats)//num_instances # expects model to fuse N*M
+        
+        features_data[feat_start_ix:feat_end_ix] = batch_feats.cpu().numpy()
+        labels_data[label_start_ix:label_end_ix] = np.atleast_2d(batch_y.numpy().astype(np.int)).transpose()
+        item_ixs_data[label_start_ix:label_end_ix] = np.atleast_2d(batch_item_ixs.numpy().astype(np.int)).transpose()
+        
+        feat_start_ix = feat_end_ix
+        label_start_ix = label_end_ix
 
-        print('Encoding ... %s/%s' %(start_ix, data_len))
+        print('Encoding ... %s/%s' %(label_start_ix, data_len)) 
     
     print('Done')
 
@@ -68,7 +74,7 @@ def extract_features(model, data_loader, data_len, num_channels, spatial_feat_di
 
 def extract_base_init_features(data_path, label_path, label_dir, 
                                extract_features_from, classifier_ckpt, arch, arch_args,
-                               max_class, num_channels, spatial_feat_dim, batch_size):
+                               max_class, num_channels, num_instances, spatial_feat_dim, batch_size):
     core_model = build_classifier(arch, arch_args, classifier_ckpt)
 
     model = ModelWrapper(core_model, output_layer_names=[extract_features_from], return_single=True)
@@ -79,12 +85,12 @@ def extract_base_init_features(data_path, label_path, label_dir,
                                         batch_size=batch_size, num_workers=batch_size)
 
     base_train_features, base_train_labels, base_item_ixs = extract_features(model, base_train_loader, n_samples,
-                                                                             num_channels=num_channels,
+                                                                             num_channels=num_channels, num_instances=num_instances,
                                                                              spatial_feat_dim=spatial_feat_dim)
     return base_train_features, base_train_labels, base_item_ixs
 
 
-def fit_pq(feats_base_init, labels_base_init, item_ix_base_init, num_channels, spatial_feat_dim, num_codebooks,
+def fit_pq(feats_base_init, labels_base_init, item_ix_base_init, num_channels, num_instances, spatial_feat_dim, num_codebooks,
            codebook_size, batch_size=128, counter=utils.Counter()):
     """
     Fit the PQ model and then quantize and store the latent codes of the data used to train the PQ in a dictionary to 
@@ -93,6 +99,7 @@ def fit_pq(feats_base_init, labels_base_init, item_ix_base_init, num_channels, s
     :param labels_base_init: numpy array of the base init labels used to train the PQ
     :param item_ix_base_init: numpy array of the item_ixs used to train the PQ
     :param num_channels: number of channels in desired features
+    :param num_instances: number of instances in desired features
     :param spatial_feat_dim: spatial dimension of desired features
     :param num_codebooks: number of codebooks for PQ
     :param codebook_size: size of each codebook for PQ
