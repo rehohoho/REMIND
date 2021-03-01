@@ -48,7 +48,7 @@ def get_data_loader(data_path, label_path, label_dir,
     loader = torch.utils.data.DataLoader(dataset, num_workers=num_workers, batch_sampler=batch_sampler)
     print('\nLoading the ' + split + ' data ... ({} samples)'.format(len(idxs)))
     
-    return loader
+    return loader, len(idxs)
 
 
 class IndexSampler(torch.utils.data.Sampler):

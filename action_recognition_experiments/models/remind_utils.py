@@ -35,7 +35,7 @@ def extract_features(model, data_loader, data_len, num_channels, spatial_feat_di
     :param data_loader: data loader of images for which we want features (images, labels, item_ixs)
     :param data_len: number of images for which we want features
     :param num_channels: number of channels in desired features
-    :param spatial_feat_dim: spatial dimension of desired features
+    :param spatial_feat_dim: spatial dimension of desired features separated by string, e.g. '7,7'
     :return: numpy arrays of features, labels, item_ixs
     """
 
@@ -44,7 +44,7 @@ def extract_features(model, data_loader, data_len, num_channels, spatial_feat_di
 
     print('Allocating space for %s features, labels, item idxs.' %data_len)
     # allocate space for features and labels
-    features_data = np.empty((data_len, num_channels, spatial_feat_dim, spatial_feat_dim), dtype=np.float32)
+    features_data = np.empty((data_len, num_channels, *[int(i) for i in spatial_feat_dim.split(',')]), dtype=np.float32)
     labels_data = np.empty((data_len, 1), dtype=np.int)
     item_ixs_data = np.empty((data_len, 1), dtype=np.int)
 
@@ -73,13 +73,12 @@ def extract_base_init_features(data_path, label_path, label_dir,
 
     model = ModelWrapper(core_model, output_layer_names=[extract_features_from], return_single=True)
 
-    base_train_loader = get_data_loader(data_path, label_path, label_dir,
+    base_train_loader, n_samples = get_data_loader(data_path, label_path, label_dir,
                                         split='train', dataset_name='nturgbd60', 
                                         min_class=0, max_class=max_class, shuffle=False, 
                                         batch_size=batch_size, num_workers=batch_size)
 
-    base_train_features, base_train_labels, base_item_ixs = extract_features(model, base_train_loader,
-                                                                             len(base_train_loader.dataset),
+    base_train_features, base_train_labels, base_item_ixs = extract_features(model, base_train_loader, n_samples,
                                                                              num_channels=num_channels,
                                                                              spatial_feat_dim=spatial_feat_dim)
     return base_train_features, base_train_labels, base_item_ixs

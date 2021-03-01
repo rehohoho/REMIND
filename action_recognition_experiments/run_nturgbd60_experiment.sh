@@ -38,7 +38,7 @@ python -u nturgbd60_experiment.py \
 --classifier_ckpt ${BASE_INIT_CKPT} \
 --extract_features_from levels.8 \
 --num_channels 256 \
---spatial_feat_dim 7 \
+--spatial_feat_dim 75,25 \
 --weight_decay 1e-5 \
 --batch_size 1 \
 --num_codebooks ${NUM_CODEBOOKS} \

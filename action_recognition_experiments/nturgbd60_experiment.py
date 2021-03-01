@@ -150,7 +150,7 @@ if __name__ == '__main__':
     parser.add_argument('--extract_features_from', type=str,
                         default='levels.8')  # name of the layer to extract features
     parser.add_argument('--num_channels', type=int, default=512)  # number of channels where features are extracted
-    parser.add_argument('--spatial_feat_dim', type=int, default=7)  # spatial dimension of features being extracted
+    parser.add_argument('--spatial_feat_dim', type=str, default='7,7')  # spatial dimension of features being extracted
     parser.add_argument('--weight_decay', type=float, default=1e-5)  # weight decay for network
     parser.add_argument('--batch_size', type=int, default=8)  # testing batch size
 
