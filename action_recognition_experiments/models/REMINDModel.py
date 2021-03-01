@@ -48,7 +48,7 @@ class REMINDModel(object):
                  classifier_F='ResNet18_StartAt_Layer4_1', classifier_F_args='{}',
                  classifier_ckpt=None, weight_decay=1e-5, lr_mode=None,
                  lr_step_size=100, start_lr=0.1, end_lr=0.001, lr_gamma=0.5, num_samples=50, use_mixup=False,
-                 mixup_alpha=0.2, grad_clip=None, num_channels=512, num_feats='7,7', num_codebooks=32, codebook_size=256,
+                 mixup_alpha=0.2, grad_clip=None, num_channels=512, num_feats='75,25,2', num_codebooks=32, codebook_size=256,
                  use_random_resize_crops=True, max_buffer_size=None):
 
         # make the classifier
@@ -84,7 +84,10 @@ class REMINDModel(object):
         self.mixup_alpha = mixup_alpha
         self.grad_clip = grad_clip
         self.num_channels = num_channels
-        self.num_feat_x, self.num_feat_y = [int(i) for i in num_feats.split(',')]
+        self.spatial_dims = [int(i) for i in num_feats.split(',')]
+        self.code_size = 1
+        for dim in self.spatial_dims:
+            self.code_size *= dim
         self.num_codebooks = num_codebooks
         self.codebook_size = codebook_size
         self.use_random_resize_crops = use_random_resize_crops
@@ -133,7 +136,7 @@ class REMINDModel(object):
             data_batch = np.transpose(data_batch, (0, 2, 3, 1))
             data_batch = np.reshape(data_batch, (-1, self.num_channels))
             codes = pq.compute_codes(data_batch)
-            codes = np.reshape(codes, (-1, self.num_feat_x, self.num_feat_y, self.num_codebooks))
+            codes = np.reshape(codes, (-1, *self.spatial_dims, self.num_codebooks))
 
             # train REMIND on one new sample at a time
             for x, y, item_ix in zip(codes, batch_labels, batch_item_ixs):
@@ -143,7 +146,7 @@ class REMINDModel(object):
                 if self.use_mixup:
                     # gather two batches of previous data for mixup and replay
                     data_codes = np.empty(
-                        (2 * self.num_samples + 1, self.num_feat_x, self.num_feat_y, self.num_codebooks),
+                        (2 * self.num_samples + 1, *self.spatial_dims, self.num_codebooks),
                         dtype=np.uint8)
                     data_labels = torch.empty((2 * self.num_samples + 1), dtype=torch.int).cuda()
                     data_codes[0] = x
@@ -156,10 +159,10 @@ class REMINDModel(object):
 
                     # reconstruct/decode samples with PQ
                     data_codes = np.reshape(data_codes, (
-                        (2 * self.num_samples + 1) * self.num_feat_x * self.num_feat_y, self.num_codebooks))
+                        (2 * self.num_samples + 1) * self.code_size, self.num_codebooks))
                     data_batch_reconstructed = pq.decode(data_codes)
                     data_batch_reconstructed = np.reshape(data_batch_reconstructed,
-                                                          (-1, self.num_feat_x, self.num_feat_y,
+                                                          (-1, *self.spatial_dims,
                                                            self.num_channels))
                     data_batch_reconstructed = torch.from_numpy(
                         np.transpose(data_batch_reconstructed, (0, 3, 1, 2))).cuda()
@@ -179,7 +182,7 @@ class REMINDModel(object):
                         data_labels[1 + self.num_samples:],
                         alpha=self.mixup_alpha)
 
-                    data = torch.empty((self.num_samples + 1, self.num_channels, self.num_feat_x, self.num_feat_y))
+                    data = torch.empty((self.num_samples + 1, self.num_channels, *self.spatial_dims))
                     data[0] = data_batch_reconstructed[0]
                     data[1:] = x_prev_mixed.clone()
                     labels_a = torch.zeros(self.num_samples + 1).long()
@@ -195,7 +198,7 @@ class REMINDModel(object):
                 else:
                     # gather previous data for replay
                     data_codes = np.empty(
-                        (self.num_samples + 1, self.num_feat_x, self.num_feat_y, self.num_codebooks),
+                        (self.num_samples + 1, *self.spatial_dims, self.num_codebooks),
                         dtype=np.uint8)
                     data_labels = torch.empty((self.num_samples + 1), dtype=torch.long).cuda()
                     data_codes[0] = x
@@ -208,10 +211,10 @@ class REMINDModel(object):
 
                     # reconstruct/decode samples with PQ
                     data_codes = np.reshape(data_codes, (
-                        (self.num_samples + 1) * self.num_feat_x * self.num_feat_y, self.num_codebooks))
+                        (self.num_samples + 1) * self.code_size, self.num_codebooks))
                     data_batch_reconstructed = pq.decode(data_codes)
                     data_batch_reconstructed = np.reshape(data_batch_reconstructed,
-                                                          (-1, self.num_feat_x, self.num_feat_y,
+                                                          (-1, *self.spatial_dims,
                                                            self.num_channels))
                     data_batch_reconstructed = torch.from_numpy(
                         np.transpose(data_batch_reconstructed, (0, 3, 1, 2))).cuda()
@@ -306,7 +309,7 @@ class REMINDModel(object):
                 codes = pq.compute_codes(data_batch)
                 data_batch_reconstructed = pq.decode(codes)
                 data_batch_reconstructed = np.reshape(data_batch_reconstructed,
-                                                      (-1, self.num_feat_x, self.num_feat_y, self.num_channels))
+                                                      (-1, *self.spatial_dims, self.num_channels))
                 data_batch_reconstructed = torch.from_numpy(np.transpose(data_batch_reconstructed, (0, 3, 1, 2))).cuda()
 
                 batch_lbls = batch_lbls.cuda()

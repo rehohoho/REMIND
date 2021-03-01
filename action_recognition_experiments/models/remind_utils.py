@@ -53,6 +53,7 @@ def extract_features(model, data_loader, data_len, num_channels, spatial_feat_di
     start_ix = 0
     for batch_ix, (batch_x, batch_y, batch_item_ixs) in enumerate(data_loader):
         batch_feats = model(batch_x.cuda())
+        batch_feats = torch.unsqueeze(batch_feats.permute(0,2,3,1), dim = 0)
         end_ix = start_ix + len(batch_feats)
         features_data[start_ix:end_ix] = batch_feats.cpu().numpy()
         labels_data[start_ix:end_ix] = np.atleast_2d(batch_y.numpy().astype(np.int)).transpose()
