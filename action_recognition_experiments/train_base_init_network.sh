@@ -17,7 +17,7 @@ exec > >(tee train_base_init_network.log) 2>&1 ##
 export CUDA_VISIBLE_DEVICES=${GPU} 
 python train_base_init_network_from_scratch.py \
 --arch ${MODEL} \
---model_args "{level: 9, num_class: 60, num_point: 25, num_person: 2, graph: graph.ntu_rgb_d.Graph, graph_args: {labeling_mode: 'spatial'}}" \
+--model_args "{level: 10, num_class: 60, num_point: 25, num_person: 2, graph: graph.ntu_rgb_d.Graph, graph_args: {labeling_mode: 'spatial'}}" \
 --base_max_class ${BASE_MAX_CLASS} \
 --labels_dir ${LABEL_ORDER_DIR} \
 --train_data_path=${NTURGBD60_ROOT}/train_data_joint.npy \

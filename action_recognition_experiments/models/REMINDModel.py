@@ -52,7 +52,7 @@ class REMINDModel(object):
                  use_random_resize_crops=True, max_buffer_size=None):
 
         # make the classifier
-        self.classifier_F = build_classifier(classifier_F, classifier_F_args, None)
+        self.classifier_F = build_classifier(classifier_F, classifier_F_args, classifier_ckpt)
         print('\nclassifier f', self.classifier_F.__str__())
         core_model = build_classifier(classifier_G, classifier_G_args, classifier_ckpt)
         self.classifier_G = ModelWrapper(core_model, output_layer_names=[extract_features_from], return_single=True)
