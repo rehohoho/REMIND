@@ -97,11 +97,11 @@ class unit_gcn(nn.Module):
         y = None
         for i in range(self.num_subset):
             A1 = self.conv_a[i](x).permute(0, 3, 1, 2).contiguous().view(N, V, self.inter_c * T)
-            A2 = self.conv_b[i](x).view(N, self.inter_c * T, V)
+            A2 = self.conv_b[i](x).contiguous().view(N, self.inter_c * T, V)
             A1 = self.soft(torch.matmul(A1, A2) / A1.size(-1))  # N V V
             A1 = A1 + A[i]
-            A2 = x.view(N, C * T, V)
-            z = self.conv_d[i](torch.matmul(A2, A1).view(N, C, T, V))
+            A2 = x.contiguous().view(N, C * T, V)
+            z = self.conv_d[i](torch.matmul(A2, A1).contiguous().view(N, C, T, V))
             y = z + y if y is not None else z
 
         y = self.bn(y)
@@ -193,14 +193,17 @@ class AGCN_StartAtLevel(Model):
         
         del self.data_bn
         self.levels = self.levels[-(10-level+1):]
+        self.num_person = num_person
 
     def forward(self, x):
+        N, C, T, V = x.size()
+        
         for level in self.levels:
             x = level(x)
         
         # N*M,C,T,V
         c_new = x.size(1)
-        x = x.view(N, M, c_new, -1)
+        x = x.view(N//self.num_person, self.num_person, c_new, -1)
         x = x.mean(3).mean(1)
 
         return self.fc(x)

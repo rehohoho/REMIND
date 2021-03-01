@@ -133,7 +133,7 @@ def fit_pq(feats_base_init, labels_base_init, item_ix_base_init, num_channels, n
         data_start = num_instances * i
         data_end = min(data_start + num_instances * mb, num_instances * num_samples)
         
-        print('data %s-%s/%s, labels %s-%s/%s' %(data_start, data_end, len(feats_base_init), start, end, len(labels_base_init)))
+        print('data %s-%s/%s, labels %s-%s/%s' %(data_start, data_end, num_instances * num_samples, start, end, num_samples))
 
         data_batch = feats_base_init[data_start:data_end]
         batch_labels = labels_base_init[start:end]
