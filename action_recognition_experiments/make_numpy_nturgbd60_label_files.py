@@ -87,8 +87,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--l_tr_path', default='../../2s-AGCN/data/ntu/xsub/train_label.pkl', help='nturgbd60 testing data .npy')
     parser.add_argument('--l_te_path', default='../../2s-AGCN/data/ntu/xsub/val_label.pkl', help='nturgbd60 testing labels .pkl')
-    parser.add_argument('--labels_dir', type=str, default='./nturgbd60_files/nturgbd60_indices')
-    parser.add_argument('--class_order_text_file', type=str, default='./nturgbd60_files/nturgbd60_class_order.txt')
+    parser.add_argument('--labels_dir', type=str, default='./files/indices')
+    parser.add_argument('--class_order_text_file', type=str, default='./files/nturgbd60_class_order.txt')
     args = parser.parse_args()
 
     main(args)
