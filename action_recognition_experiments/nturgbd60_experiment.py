@@ -2,6 +2,9 @@ import argparse
 import torch
 import json
 import os
+import logging
+import datetime
+
 from action_recognition_experiments.models.REMINDModel import REMINDModel
 from action_recognition_experiments.feeders.feeder import get_data_loader
 from action_recognition_experiments.models.remind_utils import *
@@ -32,18 +35,18 @@ def compute_accuracies(loader, remind, pq):
 def update_accuracies(args, curr_max_class, remind, pq, accuracies):
     base_test_loader = get_dataloader(args, 'val', args.min_class, args.base_init_classes)
     base_probas, base_top1, base_top5 = compute_accuracies(base_test_loader, remind, pq)
-    print('\nBase Init Classes (%d-%d): top1=%0.2f%% -- top5=%0.2f%%' % (
+    logger.info('\nBase Init Classes (%d-%d): top1=%0.2f%% -- top5=%0.2f%%' % (
         args.min_class, args.base_init_classes - 1, base_top1, base_top5))
 
     non_base_classes_test_loader = get_dataloader(args, 'val', args.base_init_classes, curr_max_class)
     non_base_probas, non_base_top1, non_base_top5 = compute_accuracies(non_base_classes_test_loader, remind, pq)
 
-    print('Non-Base Init Classes (%d-%d): top1=%0.2f%% -- top5=%0.2f%%' % (
+    logger.info('Non-Base Init Classes (%d-%d): top1=%0.2f%% -- top5=%0.2f%%' % (
         args.base_init_classes, curr_max_class - 1, non_base_top1, non_base_top5))
 
     seen_classes_test_loader = get_dataloader(args, 'val', args.min_class, curr_max_class)
     seen_probas, seen_top1, seen_top5 = compute_accuracies(seen_classes_test_loader, remind, pq)
-    print('All Seen Classes (%d-%d): top1=%0.2f%% -- top5=%0.2f%%' % (
+    logger.info('All Seen Classes (%d-%d): top1=%0.2f%% -- top5=%0.2f%%' % (
         args.min_class, curr_max_class - 1, seen_top1, seen_top5))
 
     accuracies['base_classes_top1'].append(float(base_top1))
@@ -70,12 +73,12 @@ def streaming(args, remind):
                                                                                         args.resume_full_path)
 
         # validate performance from previous increment
-        print('Previous model loaded...computing previous accuracy as sanity check...')
+        logger.info('Previous model loaded...computing previous accuracy as sanity check...')
         test_loader = get_dataloader(args, 'val', args.min_class, args.streaming_min_class)
         _, probas, y_test = remind.predict(test_loader, pq)
         update_accuracies(args, curr_max_class=args.streaming_min_class, remind=remind, pq=pq, accuracies=accuracies)
     else:
-        print('\nPerforming base initialization...')
+        logger.info('\nPerforming base initialization...')
         feat_data, label_data, item_ix_data = extract_base_init_features(args.train_data_path, args.train_label_path, args.label_dir,
                                                                          args.extract_features_from, args.classifier_ckpt,
                                                                          args.base_arch, args.base_model_args, 
@@ -87,21 +90,21 @@ def streaming(args, remind):
                                                                           args.codebook_size, counter=counter, batch_size=args.batch_size)
 
         initial_test_loader = get_dataloader(args, 'val', args.min_class, args.base_init_classes)
-        print('\nComputing base accuracies...')
+        logger.info('\nComputing base accuracies...')
         base_probas, base_top1, base_top5 = compute_accuracies(initial_test_loader, remind, pq)
 
-        print('\nInitial Test: top1=%0.2f%% -- top5=%0.2f%%' % (base_top1, base_top5))
+        logger.info('\nInitial Test: top1=%0.2f%% -- top5=%0.2f%%' % (base_top1, base_top5))
         utils.save_predictions(base_probas, args.min_class, args.base_init_classes, args.save_dir)
         accuracies['base_classes_top1'].append(float(base_top1))
         accuracies['base_classes_top5'].append(float(base_top5))
         accuracies['seen_classes_top1'].append(float(base_top1))
         accuracies['seen_classes_top5'].append(float(base_top5))
 
-    print('\nBeginning streaming training...')
+    logger.info('\nBeginning streaming training...')
     for class_ix in range(args.streaming_min_class, args.streaming_max_class, args.class_increment):
         max_class = class_ix + args.class_increment
 
-        print('\nTraining classes {}-{}.'.format(class_ix, max_class))
+        logger.info('\nTraining classes {}-{}.'.format(class_ix, max_class))
         train_loader_curr = get_dataloader(args, 'train', class_ix, max_class)
 
         # fit model with rehearsal
@@ -122,7 +125,7 @@ def streaming(args, remind):
     test_loader = get_dataloader(args, 'val', args.min_class, args.streaming_max_class)
     _, probas, y_test = remind.predict(test_loader, pq)
     top1, top5 = utils.accuracy(probas, y_test, topk=(1, 5))
-    print('\nFinal: top1=%0.2f%% -- top5=%0.2f%%' % (top1, top5))
+    logger.info('\nFinal: top1=%0.2f%% -- top5=%0.2f%%' % (top1, top5))
 
 
 if __name__ == '__main__':
@@ -184,6 +187,27 @@ if __name__ == '__main__':
 
     # get arguments and print them out and make any necessary directories
     args = parser.parse_args()
+
+    path_splitext = os.path.splitext('nturgbd60_experiment.log') 
+    path = path_splitext[0] + '_' + \
+        str(datetime.datetime.now()).split(".")[0]\
+            .replace(" ", "_").replace(":", "_").replace("-", "_") + \
+        path_splitext[1]
+
+    file_handler = logging.FileHandler(path, mode="w")
+    file_handler.setLevel(logging.DEBUG)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.DEBUG)
+
+    formatter = logging.Formatter('%(asctime)s: %(levelname)s - [%(module)s] %(message)s')
+    stream_handler.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    logger.addHandler(stream_handler)
+    logger.addHandler(file_handler)
+
     if args.save_dir is None:
         args.save_dir = 'streaming_experiments/' + args.expt_name
 
@@ -193,7 +217,7 @@ if __name__ == '__main__':
     if args.lr_mode == 'step_lr_per_class':
         args.lr_gamma = np.exp(args.lr_step_size * np.log(args.end_lr / args.start_lr) / 1300)
 
-    print("Arguments {}".format(json.dumps(vars(args), indent=4, sort_keys=True)))
+    logger.info("Arguments {}".format(json.dumps(vars(args), indent=4, sort_keys=True)))
 
     # make model and begin stream training
     remind = REMINDModel(num_classes=args.num_classes, classifier_G=args.base_arch, classifier_G_args=args.base_model_args,

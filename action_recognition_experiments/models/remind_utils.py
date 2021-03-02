@@ -1,8 +1,9 @@
-import numpy as np
 import time
 import importlib
+import logging
 from collections import defaultdict
 
+import numpy as np
 import faiss
 import yaml
 import torch
@@ -10,20 +11,22 @@ import image_classification_experiments.utils as utils
 from image_classification_experiments.retrieve_any_layer import ModelWrapper
 from action_recognition_experiments.feeders.feeder import get_data_loader
 
+logger = logging.getLogger(__name__)
+
 
 def build_classifier(base_arch, base_model_args, classifier_ckpt):
     base_model_args = yaml.load(base_model_args, Loader=yaml.FullLoader)
     classifier = getattr(importlib.import_module('models.agcn'), base_arch)(*base_model_args.values())
 
     if classifier_ckpt is None:
-        print("Will not resume any checkpoints!")
+        logger.info("Will not resume any checkpoints!")
     else:
         resumed = torch.load(classifier_ckpt)
         if 'state_dict' in resumed:
             state_dict_key = 'state_dict'
         else:
             state_dict_key = 'model_state'
-        print("Resuming with {}".format(classifier_ckpt))
+        logger.info("Resuming with {}".format(classifier_ckpt))
         utils.safe_load_dict(classifier, resumed[state_dict_key], should_resume_all_params=True)
     return classifier
 
@@ -42,14 +45,14 @@ def extract_features(model, data_loader, data_len, num_channels, num_instances, 
     model.eval()
     model.cuda()
 
-    print('Allocating space for %s features, labels, item idxs.' %data_len)
+    logger.info('Allocating space for %s features, labels, item idxs.' %data_len)
     # allocate space for features and labels
     spatial_dims = [int(i) for i in spatial_feat_dim.split(',')]
     features_data = np.empty((num_instances*data_len, num_channels, *spatial_dims), dtype=np.float32)
     labels_data = np.empty((data_len, 1), dtype=np.int)
     item_ixs_data = np.empty((data_len, 1), dtype=np.int)
 
-    print('Encoding features and labels into arrays.')
+    logger.info('Encoding features and labels into arrays.')
     # put features and labels into arrays
     feat_start_ix = 0
     label_start_ix = 0
@@ -65,9 +68,9 @@ def extract_features(model, data_loader, data_len, num_channels, num_instances, 
         feat_start_ix = feat_end_ix
         label_start_ix = label_end_ix
 
-        print('Encoding ... %s/%s' %(label_start_ix, data_len)) 
+        logger.info('Encoding ... %s/%s' %(label_start_ix, data_len)) 
     
-    print('Done')
+    logger.info('Done')
 
     return features_data, labels_data, item_ixs_data
 
@@ -108,20 +111,21 @@ def fit_pq(feats_base_init, labels_base_init, item_ix_base_init, num_channels, n
     :return: (trained PQ object, dictionary of latent codes, list of item_ixs for latent codes, dict of visited classes
      and associated item_ixs)
     """
+    logger.info('%s, %s, %s' %(feats_base_init.shape, labels_base_init.shape, item_ix_base_init.shape))
 
     train_data_base_init = np.transpose(feats_base_init, (0, 2, 3, 1))
     train_data_base_init = np.reshape(train_data_base_init, (-1, num_channels))
     num_samples = len(train_data_base_init)
 
-    print('\nTraining Product Quantizer')
+    logger.info('\nTraining Product Quantizer')
     start = time.time()
     nbits = int(np.log2(codebook_size))
     pq = faiss.ProductQuantizer(num_channels, num_codebooks, nbits)
     pq.train(train_data_base_init)
-    print("Completed in {} secs".format(time.time() - start))
+    logger.info("Completed in {} secs".format(time.time() - start))
     del train_data_base_init
 
-    print('\nEncoding and Storing Base Init Codes')
+    logger.info('\nEncoding and Storing Base Init Codes')
     start_time = time.time()
     latent_dict = {}
     class_id_to_item_ix_dict = defaultdict(list)
@@ -133,8 +137,6 @@ def fit_pq(feats_base_init, labels_base_init, item_ix_base_init, num_channels, n
         data_start = num_instances * i
         data_end = min(data_start + num_instances * mb, num_instances * num_samples)
         
-        print('data %s-%s/%s, labels %s-%s/%s' %(data_start, data_end, num_instances * num_samples, start, end, num_samples))
-
         data_batch = feats_base_init[data_start:data_end]
         batch_labels = labels_base_init[start:end]
         batch_item_ixs = item_ix_base_init[start:end]
@@ -153,5 +155,5 @@ def fit_pq(feats_base_init, labels_base_init, item_ix_base_init, num_channels, n
             class_id_to_item_ix_dict[int(batch_labels[j])].append(ix)
             counter.update()
 
-    print("Completed in {} secs".format(time.time() - start_time))
+    logger.info("Completed in {} secs".format(time.time() - start_time))
     return pq, latent_dict, rehearsal_ixs, class_id_to_item_ix_dict

@@ -4,6 +4,7 @@ import random
 import os
 import pickle
 import importlib
+import logging
 
 import yaml
 import numpy as np
@@ -12,12 +13,14 @@ import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 import faiss
+from torch.autograd import Variable
 
 import image_classification_experiments.utils as utils
 from image_classification_experiments.retrieve_any_layer import ModelWrapper
 from action_recognition_experiments.models.remind_utils import build_classifier
 
 sys.setrecursionlimit(10000)
+logger = logging.getLogger(__name__)
 
 
 def randint(max_val, num_samples):
@@ -49,14 +52,14 @@ class REMINDModel(object):
                  classifier_ckpt=None, weight_decay=1e-5, lr_mode=None,
                  lr_step_size=100, start_lr=0.1, end_lr=0.001, lr_gamma=0.5, num_samples=50, use_mixup=False,
                  mixup_alpha=0.2, grad_clip=None, num_channels=512, num_instances=2, num_feats='7,7', num_codebooks=32, codebook_size=256,
-                 use_random_resize_crops=True, max_buffer_size=None):
+                 use_random_resize_crops=False, max_buffer_size=None):
 
         # make the classifier
         self.classifier_F = build_classifier(classifier_F, classifier_F_args, classifier_ckpt)
-        print('\nclassifier f', self.classifier_F.__str__())
+        logger.info('\nclassifier f\n%s' %(self.classifier_F.__str__()))
         core_model = build_classifier(classifier_G, classifier_G_args, classifier_ckpt)
         self.classifier_G = ModelWrapper(core_model, output_layer_names=[extract_features_from], return_single=True)
-        print('\nclassifier g', self.classifier_G.__str__())
+        logger.info('\nclassifier g\n%s' %(self.classifier_G.__str__()))
 
         # make the optimizer
         trainable_params = self.get_trainable_params(self.classifier_F, start_lr)
@@ -239,7 +242,7 @@ class REMINDModel(object):
 
                 total_loss.update(loss.item())
                 if verbose:
-                    print(msg % (c, total_loss.avg, time.time() - start_time), end="")
+                    logger.info(msg % (c, total_loss.avg, time.time() - start_time))
                 c += 1
 
                 # since we have visited item_ix, it is now eligible for replay
@@ -317,6 +320,10 @@ class REMINDModel(object):
                 start_ix = end_ix
 
             preds = probas.data.max(1)[1]
+            preds = preds[:end_ix]
+            probas = probas[:end_ix]
+            all_lbls = all_lbls[:end_ix]
+            logger.info('%s, %s, %s, %s,' %(end_ix, probas.shape, all_lbls.shape, preds.shape))
 
         return preds.numpy(), probas.numpy(), all_lbls.int().numpy()
 
@@ -339,7 +346,7 @@ class REMINDModel(object):
             'model_state_dict': self.classifier_F.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict()
         }
-        print(f'\nSaving REMIND model to {save_full_path}')
+        logger.info(f'\nSaving REMIND model to {save_full_path}')
         torch.save(state, os.path.join(save_full_path, 'remind_classifier_F_%d.pth' % inc))
 
         # get PQ centroids/codebooks
@@ -359,7 +366,7 @@ class REMINDModel(object):
         :return: (classifier state dict, latent dict, rehearsal ixs list, class id to item ix dict)
         """
 
-        print(f'\nResuming REMIND model from {resume_full_path}')
+        logger.info(f'\nResuming REMIND model from {resume_full_path}')
         state = torch.load(os.path.join(resume_full_path, 'remind_classifier_F_%d.pth' % inc))
         self.classifier_F.load_state_dict(state['model_state_dict'])
         self.optimizer.load_state_dict(state['optimizer_state_dict'])
