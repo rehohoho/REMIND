@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 
-PROJ_ROOT=D:/repos/REMIND ##
+PROJ_ROOT=/home/ruien/REMIND ##
 
 export PYTHONPATH=${PROJ_ROOT}
 export KMP_DUPLICATE_LIB_OK=TRUE
 cd ${PROJ_ROOT}/action_recognition_experiments
 
-NTURGBD60_ROOT=D:/repos/GradientEpisodicMemory/data/raw ##
+NTURGBD60_ROOT=/home/ruien/2s-AGCN/data/ntu/xsub ##
 EXPT_NAME=remind_nturgbd60
-GPU=0 ##
+GPU=1 ##
 
 
 CODEBOOK_SIZE=256
 NUM_CODEBOOKS=32
-REPLAY_SAMPLES=50
+REPLAY_SAMPLES=7 # batch number -1
 MAX_BUFFER_SIZE=959665
 
 BASE_INIT_CLASSES=6
@@ -23,8 +23,8 @@ BASE_INIT_CKPT=./files/best_AGCN_ClassifyAfterLevel_6.pth # base init ckpt file
 LABEL_ORDER_DIR=./files/indices # location of numpy label files
 
 
-set +o posix ##
-exec > >(tee run_nturgbd60_experiment.log) 2>&1 ##
+#set +o posix ##
+#exec > >(tee run_nturgbd60_experiment.log) 2>&1 ##
 export CUDA_VISIBLE_DEVICES=${GPU} 
 python -u nturgbd60_experiment.py \
 --expt_name ${EXPT_NAME} \
@@ -41,7 +41,7 @@ python -u nturgbd60_experiment.py \
 --num_instances 2 \
 --spatial_feat_dim 75,25 \
 --weight_decay 1e-5 \
---batch_size 1 \
+--batch_size 8 \
 --num_codebooks ${NUM_CODEBOOKS} \
 --codebook_size ${CODEBOOK_SIZE} \
 --rehearsal_samples ${REPLAY_SAMPLES} \
@@ -50,7 +50,6 @@ python -u nturgbd60_experiment.py \
 --lr_step_size 100 \
 --start_lr 0.1 \
 --end_lr 0.001 \
---use_random_resized_crops \
 --use_mixup \
 --mixup_alpha .1 \
 --num_classes ${NUM_CLASSES} \

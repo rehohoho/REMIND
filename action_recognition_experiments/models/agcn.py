@@ -1,9 +1,12 @@
 import math
+import logging
 
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
+
+logger = logging.getLogger(__name__)
 
 
 def import_class(name):
@@ -204,8 +207,8 @@ class AGCN_StartAtLevel(Model):
         
         # N*M,C,T,V
         c_new = x.size(1)
-        x = x.view(N//self.num_person, self.num_person, c_new, -1)
-        x = x.mean(3).mean(1)
+        x = x.view(N//self.num_person, self.num_person, c_new, -1) #B, C, T, V -> #B//2, 2, C, T*V
+        x = x.mean(3).mean(1) # B//2, C
 
         return self.fc(x)
 

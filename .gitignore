@@ -5,3 +5,4 @@ vqa_experiments/__pycache__
 snapshots
 *__pycache__
 *.log
+/action_recognition_experiments/streaming_experiments

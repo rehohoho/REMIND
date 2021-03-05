@@ -88,6 +88,7 @@ class REMINDModel(object):
         self.grad_clip = grad_clip
         self.num_channels = num_channels
         self.num_feat_x, self.num_feat_y = [int(i) for i in num_feats.split(',')]
+        self.num_instances = num_instances
         self.num_codebooks = num_codebooks
         self.codebook_size = codebook_size
         self.use_random_resize_crops = use_random_resize_crops
@@ -129,6 +130,7 @@ class REMINDModel(object):
         start_time = time.time()
         total_loss = utils.CMA()
         c = 0
+        # batch images (B, C, T, V, M), batch label (B), batch item ixs (B)
         for batch_images, batch_labels, batch_item_ixs in curr_loader:
 
             # get features from G and latent codes from PQ
@@ -136,30 +138,34 @@ class REMINDModel(object):
             data_batch = np.transpose(data_batch, (0, 2, 3, 1))
             data_batch = np.reshape(data_batch, (-1, self.num_channels))
             codes = pq.compute_codes(data_batch)
-            codes = np.reshape(codes, (-1, self.num_feat_x, self.num_feat_y, self.num_codebooks))
+            codes = np.reshape(codes, (-1, self.num_feat_x, self.num_feat_y, self.num_codebooks)) # B*2, X1, X2, codebooks
 
             # train REMIND on one new sample at a time
-            for x, y, item_ix in zip(codes, batch_labels, batch_item_ixs):
+            for i in range(len(batch_labels)):
+                x = codes[self.num_instances*i:self.num_instances*(i+1)]
+                y = batch_labels[i]
+                item_ix = batch_item_ixs[i]
+                
                 if self.lr_mode == 'step_lr_per_class' and (ongoing_class is None or ongoing_class != y):
                     ongoing_class = y
 
                 if self.use_mixup:
                     # gather two batches of previous data for mixup and replay
                     data_codes = np.empty(
-                        (2 * self.num_samples + 1, self.num_feat_x, self.num_feat_y, self.num_codebooks),
+                        (self.num_instances * (2 * self.num_samples + 1), self.num_feat_x, self.num_feat_y, self.num_codebooks),
                         dtype=np.uint8)
                     data_labels = torch.empty((2 * self.num_samples + 1), dtype=torch.int).cuda()
-                    data_codes[0] = x
+                    data_codes[0:2] = x
                     data_labels[0] = y
                     ixs = randint(len(rehearsal_ixs), 2 * self.num_samples)
                     ixs = [rehearsal_ixs[_curr_ix] for _curr_ix in ixs]
                     for ii, v in enumerate(ixs):
-                        data_codes[ii + 1] = latent_dict[v][0]
+                        data_codes[self.num_instances * (ii + 1) : self.num_instances * (ii + 2)] = latent_dict[v][0]
                         data_labels[ii + 1] = torch.from_numpy(latent_dict[v][1])
 
                     # reconstruct/decode samples with PQ
                     data_codes = np.reshape(data_codes, (
-                        (2 * self.num_samples + 1) * self.num_feat_x * self.num_feat_y, self.num_codebooks))
+                        self.num_instances * (2 * self.num_samples + 1) * self.num_feat_x * self.num_feat_y, self.num_codebooks))
                     data_batch_reconstructed = pq.decode(data_codes)
                     data_batch_reconstructed = np.reshape(data_batch_reconstructed,
                                                           (-1, self.num_feat_x, self.num_feat_y,
@@ -176,15 +182,15 @@ class REMINDModel(object):
 
                     # MIXUP: Do mixup between two batches of previous data
                     x_prev_mixed, prev_labels_a, prev_labels_b, lam = self.mixup_data(
-                        data_batch_reconstructed[1:1 + self.num_samples],
+                        data_batch_reconstructed[self.num_instances:self.num_instances * (1 + self.num_samples)],
                         data_labels[1:1 + self.num_samples],
-                        data_batch_reconstructed[1 + self.num_samples:],
+                        data_batch_reconstructed[self.num_instances * (1 + self.num_samples):],
                         data_labels[1 + self.num_samples:],
                         alpha=self.mixup_alpha)
 
-                    data = torch.empty((self.num_samples + 1, self.num_channels, self.num_feat_x, self.num_feat_y))
-                    data[0] = data_batch_reconstructed[0]
-                    data[1:] = x_prev_mixed.clone()
+                    data = torch.empty((self.num_instances * (self.num_samples + 1), self.num_channels, self.num_feat_x, self.num_feat_y))
+                    data[0:2] = data_batch_reconstructed[0:2]
+                    data[2:] = x_prev_mixed.clone()
                     labels_a = torch.zeros(self.num_samples + 1).long()
                     labels_b = torch.zeros(self.num_samples + 1).long()
                     labels_a[0] = y.squeeze()
@@ -198,20 +204,20 @@ class REMINDModel(object):
                 else:
                     # gather previous data for replay
                     data_codes = np.empty(
-                        (self.num_samples + 1, self.num_feat_x, self.num_feat_y, self.num_codebooks),
+                        (self.num_instances * (self.num_samples + 1), self.num_feat_x, self.num_feat_y, self.num_codebooks),
                         dtype=np.uint8)
                     data_labels = torch.empty((self.num_samples + 1), dtype=torch.long).cuda()
-                    data_codes[0] = x
+                    data_codes[0:2] = x
                     data_labels[0] = y
                     ixs = randint(len(rehearsal_ixs), self.num_samples)
                     ixs = [rehearsal_ixs[_curr_ix] for _curr_ix in ixs]
                     for ii, v in enumerate(ixs):
-                        data_codes[ii + 1] = latent_dict[v][0]
+                        data_codes[self.num_instances * (ii + 1) : self.num_instances * (ii + 2)] = latent_dict[v][0]
                         data_labels[ii + 1] = torch.from_numpy(latent_dict[v][1])
 
                     # reconstruct/decode samples with PQ
                     data_codes = np.reshape(data_codes, (
-                        (self.num_samples + 1) * self.num_feat_x * self.num_feat_y, self.num_codebooks))
+                        self.num_instances * (self.num_samples + 1) * self.num_feat_x * self.num_feat_y, self.num_codebooks))
                     data_batch_reconstructed = pq.decode(data_codes)
                     data_batch_reconstructed = np.reshape(data_batch_reconstructed,
                                                           (-1, self.num_feat_x, self.num_feat_y,
