@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 def build_classifier(base_arch, base_model_args, classifier_ckpt):
     base_model_args = yaml.load(base_model_args, Loader=yaml.FullLoader)
-    classifier = getattr(importlib.import_module('models.agcn'), base_arch)(*base_model_args.values())
+    classifier = getattr(importlib.import_module('models.backbones'), base_arch)(*base_model_args.values())
 
     if classifier_ckpt is None:
         logger.info("Will not resume any checkpoints!")

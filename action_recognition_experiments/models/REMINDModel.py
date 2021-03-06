@@ -3,7 +3,6 @@ import sys
 import random
 import os
 import pickle
-import importlib
 import logging
 
 import yaml
@@ -200,6 +199,7 @@ class REMINDModel(object):
 
                     # fit on replay mini-batch plus new sample
                     output = classifier_F(data.cuda())
+                    logger.info(f'\n\n{output.argmax(axis=-1)}\n{labels_a}\n{labels_b}\n{output.shape}')
                     loss = self.mixup_criterion(criterion, output, labels_a.cuda(), labels_b.cuda(), lam)
                 else:
                     # gather previous data for replay
