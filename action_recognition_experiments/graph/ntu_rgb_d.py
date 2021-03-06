@@ -33,13 +33,34 @@ class Graph:
         return A
 
 
+class AdjMatrixGraph:
+    def __init__(self, *args, **kwargs):
+        self.edges = neighbor
+        self.num_nodes = num_node
+        self.self_loops = [(i, i) for i in range(self.num_nodes)]
+        self.A_binary = tools.get_adjacency_matrix(self.edges, self.num_nodes)
+        self.A_binary_with_I = tools.get_adjacency_matrix(self.edges + self.self_loops, self.num_nodes)
+        self.A = tools.normalize_adjacency_matrix(self.A_binary)
+
+
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     import os
 
     # os.environ['DISPLAY'] = 'localhost:11.0'
+    print('\nTesting Graph')
     A = Graph('spatial').get_adjacency_matrix()
     for i in A:
         plt.imshow(i, cmap='gray')
         plt.show()
     print(A)
+
+    print('\nTesting AdjMatrixGraph')
+    graph = AdjMatrixGraph()
+    A, A_binary, A_binary_with_I = graph.A, graph.A_binary, graph.A_binary_with_I
+    f, ax = plt.subplots(1, 3)
+    ax[0].imshow(A_binary_with_I, cmap='gray')
+    ax[1].imshow(A_binary, cmap='gray')
+    ax[2].imshow(A, cmap='gray')
+    plt.show()
+    print(A_binary_with_I.shape, A_binary.shape, A.shape)

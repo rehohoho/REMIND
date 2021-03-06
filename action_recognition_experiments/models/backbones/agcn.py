@@ -132,9 +132,9 @@ class TCN_GCN_unit(nn.Module):
         return self.relu(x)
 
 
-class Model(nn.Module):
+class AGCN(nn.Module):
     def __init__(self, num_class=60, num_point=25, num_person=2, graph=None, graph_args=dict(), in_channels=3):
-        super(Model, self).__init__()
+        super(AGCN, self).__init__()
 
         if graph is None:
             raise ValueError()
@@ -180,7 +180,7 @@ class Model(nn.Module):
         return self.fc(x)
 
 
-class AGCN_ClassifyAfterLevel(Model):
+class AGCN_ClassifyAfterLevel(AGCN):
     
     def __init__(self, level, num_class=60, num_point=25, num_person=2, graph=None, graph_args=dict(), in_channels=3):
         super(AGCN_ClassifyAfterLevel, self).__init__(num_class, num_point, num_person, graph, graph_args, in_channels)
@@ -189,7 +189,7 @@ class AGCN_ClassifyAfterLevel(Model):
             del self.levels[str(i)]
 
 
-class AGCN_StartAtLevel(Model):
+class AGCN_StartAtLevel(AGCN):
 
     def __init__(self, level, num_class=60, num_point=25, num_person=2, graph=None, graph_args=dict(), in_channels=3):
         super(AGCN_StartAtLevel, self).__init__(num_class, num_point, num_person, graph, graph_args, in_channels)
@@ -215,7 +215,7 @@ class AGCN_StartAtLevel(Model):
 
 if __name__ == '__main__':
 
-    model = Model(graph='graph.ntu_rgb_d.Graph', graph_args={'labeling_mode': 'spatial'})
+    model = AGCN(graph='graph.ntu_rgb_d.Graph', graph_args={'labeling_mode': 'spatial'})
     g = AGCN_ClassifyAfterLevel(9, graph='graph.ntu_rgb_d.Graph', graph_args={'labeling_mode': 'spatial'})
     f = AGCN_StartAtLevel(10, graph='graph.ntu_rgb_d.Graph', graph_args={'labeling_mode': 'spatial'})
     
