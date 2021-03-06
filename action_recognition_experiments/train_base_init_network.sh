@@ -1,19 +1,19 @@
 #!/usr/bin/env bash
 
-PROJ_ROOT=D:/repos/REMIND ##
+PROJ_ROOT=/home/ruien/REMIND ##
 
 export PYTHONPATH=${PROJ_ROOT}
 #source activate remind_proj
 cd ${PROJ_ROOT}/action_recognition_experiments
 
-NTURGBD60_ROOT=D:/repos/GradientEpisodicMemory/data/raw ##
+NTURGBD60_ROOT=/home/ruien/GradientEpisodicMemory/data/raw ##
 BASE_MAX_CLASS=6
 MODEL=AGCN_ClassifyAfterLevel
-LABEL_ORDER_DIR=./nturgbd60_files/ ##
+LABEL_ORDER_DIR=./files/ ##
 GPU=0 ##
 
-set +o posix ##
-exec > >(tee train_base_init_network.log) 2>&1 ##
+# set +o posix ##
+# exec > >(tee train_base_init_network.log) 2>&1 ##
 export CUDA_VISIBLE_DEVICES=${GPU} 
 python train_base_init_network_from_scratch.py \
 --arch ${MODEL} \
@@ -25,6 +25,6 @@ python train_base_init_network_from_scratch.py \
 --val_data_path=${NTURGBD60_ROOT}/val_data_joint.npy \
 --val_label_path=${NTURGBD60_ROOT}/val_label.pkl \
 --ckpt_file ${MODEL}_${BASE_MAX_CLASS}.pth \
---batch_size=1 \
---workers=1 \
---epochs=1
+--batch_size=20 \
+--workers=160 \
+--epochs=160

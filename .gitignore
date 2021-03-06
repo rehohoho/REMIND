@@ -6,3 +6,4 @@ snapshots
 *__pycache__
 *.log
 /action_recognition_experiments/streaming_experiments
+/action_recognition_experiments/nturgbd60_2sagcn_ckpts

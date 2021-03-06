@@ -5,6 +5,8 @@ import shutil
 import warnings
 import importlib
 import time
+import datetime
+import logging
 
 import yaml
 import numpy as np
@@ -79,7 +81,7 @@ best_acc1 = 0
 
 def main():
     args = parser.parse_args()
-    print(vars(args))
+    logger.info(vars(args))
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir)
 
@@ -120,7 +122,7 @@ def main_worker(gpu, ngpus_per_node, args):
     args.gpu = gpu
 
     if args.gpu is not None:
-        print("Use GPU: {} for training".format(args.gpu))
+        logger.info("Use GPU: {} for training".format(args.gpu))
 
     if args.distributed:
         if args.dist_url == "env://" and args.rank == -1:
@@ -134,7 +136,7 @@ def main_worker(gpu, ngpus_per_node, args):
     
     model_args = yaml.load(args.model_args, Loader=yaml.FullLoader)
     model = getattr(importlib.import_module('models.agcn'), args.arch)(*model_args.values())
-    print(model.__str__())
+    logger.info(model.__str__())
 
     if args.distributed:
         # For multiprocessing distributed, DistributedDataParallel constructor
@@ -175,7 +177,7 @@ def main_worker(gpu, ngpus_per_node, args):
     # optionally resume from a checkpoint
     if args.resume:
         if os.path.isfile(args.resume):
-            print("=> loading checkpoint '{}'".format(args.resume))
+            logger.info("=> loading checkpoint '{}'".format(args.resume))
             checkpoint = torch.load(args.resume)
             args.start_epoch = checkpoint['epoch']
             best_acc1 = checkpoint['best_acc1']
@@ -184,25 +186,25 @@ def main_worker(gpu, ngpus_per_node, args):
                 best_acc1 = best_acc1.to(args.gpu)
             model.load_state_dict(checkpoint['state_dict'])
             optimizer.load_state_dict(checkpoint['optimizer'])
-            print("=> loaded checkpoint '{}' (epoch {})"
+            logger.info("=> loaded checkpoint '{}' (epoch {})"
                   .format(args.resume, checkpoint['epoch']))
         else:
-            print("=> no checkpoint found at '{}'".format(args.resume))
+            logger.info("=> no checkpoint found at '{}'".format(args.resume))
 
     cudnn.benchmark = True
 
     # CHANGED HERE
-    print('\nloading the data...')
+    logger.info('\nloading the data...')
     train_dataset = Feeder(data_path=args.train_data_path, label_path=args.train_label_path)
     train_idx = list(np.arange(len(train_dataset))[np.array(train_dataset.label) < args.base_max_class])
-    print('len train base-init loader ', len(train_idx))
+    logger.info('len train base-init loader %s' %(len(train_idx)))
     train_sampler = torch.utils.data.sampler.SubsetRandomSampler(train_idx)
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, num_workers=args.workers, pin_memory=True, sampler=train_sampler)
 
     val_dataset = Feeder(data_path=args.val_data_path, label_path=args.val_label_path)
     val_idx = list(np.arange(len(val_dataset))[np.array(val_dataset.label) < args.base_max_class])
-    print('len val base-init loader ', len(val_idx))
+    logger.info('len val base-init loader %s' %(len(val_idx)))
     val_sampler = torch.utils.data.sampler.SubsetRandomSampler(val_idx)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, num_workers=args.workers,
                                              pin_memory=True, sampler=val_sampler)
@@ -211,7 +213,7 @@ def main_worker(gpu, ngpus_per_node, args):
         validate(val_loader, model, criterion, args)
         return
 
-    print('\nstarting training...')
+    logger.info('\nstarting training...')
     for epoch in range(args.start_epoch, args.epochs):
         if args.distributed:
             train_sampler.set_epoch(epoch)
@@ -257,7 +259,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
     for i, (data, label, index) in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
-        # print(f"Trained {i} batches in {time.time() - start} secs")
+        # logger.info(f"Trained {i} batches in {time.time() - start} secs")
         
         data = Variable(data.float().cuda(args.gpu, non_blocking=True), requires_grad=False)
         label = Variable(label.long().cuda(args.gpu, non_blocking=True), requires_grad=False)
@@ -285,7 +287,7 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
         end = time.time()
 
         if i % args.print_freq == 0:
-            print('Epoch: [{0}][{1}/{2}]\t'
+            logger.info('Epoch: [{0}][{1}/{2}]\t'
                   'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                   'Data {data_time.val:.3f} ({data_time.avg:.3f})\t'
                   'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
@@ -329,7 +331,7 @@ def validate(val_loader, model, criterion, args):
             end = time.time()
 
             if i % args.print_freq == 0:
-                print('Test: [{0}/{1}]\t'
+                logger.info('Test: [{0}/{1}]\t'
                       'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                       'Loss {loss.val:.4f} ({loss.avg:.4f})\t'
                       'Acc@1 {top1.val:.3f} ({top1.avg:.3f})\t'
@@ -337,7 +339,7 @@ def validate(val_loader, model, criterion, args):
                     i, len(val_loader), batch_time=batch_time, loss=losses,
                     top1=top1, top5=top5))
 
-        print(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
+        logger.info(' * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}'
               .format(top1=top1, top5=top5))
 
     return top1.avg
@@ -393,4 +395,25 @@ def accuracy(output, target, topk=(1,)):
 
 
 if __name__ == '__main__':
+    
+    path_splitext = os.path.splitext('train_base_init_network_from_scratch.log') 
+    path = path_splitext[0] + '_' + \
+        str(datetime.datetime.now()).split(".")[0]\
+            .replace(" ", "_").replace(":", "_").replace("-", "_") + \
+        path_splitext[1]
+
+    file_handler = logging.FileHandler(path, mode="w")
+    file_handler.setLevel(logging.DEBUG)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.DEBUG)
+
+    formatter = logging.Formatter('%(asctime)s: %(levelname)s - [%(module)s] %(message)s')
+    stream_handler.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    logger.addHandler(stream_handler)
+    logger.addHandler(file_handler)
+
     main()
