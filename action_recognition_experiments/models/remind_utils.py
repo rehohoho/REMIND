@@ -23,11 +23,13 @@ def build_classifier(base_arch, base_model_args, classifier_ckpt):
     else:
         resumed = torch.load(classifier_ckpt)
         if 'state_dict' in resumed:
-            state_dict_key = 'state_dict'
+            load_dict = resumed['state_dict']
+        elif 'model_state' in resumed:
+            load_dict = resumed['model_state']
         else:
-            state_dict_key = 'model_state'
+            load_dict = resumed
         logger.info("Resuming with {}".format(classifier_ckpt))
-        utils.safe_load_dict(classifier, resumed[state_dict_key], should_resume_all_params=True)
+        utils.safe_load_dict(classifier, load_dict, should_resume_all_params=True)
     return classifier
 
 
@@ -81,6 +83,7 @@ def extract_base_init_features(data_path, label_path, label_dir,
     core_model = build_classifier(arch, arch_args, classifier_ckpt)
 
     model = ModelWrapper(core_model, output_layer_names=[extract_features_from], return_single=True)
+    model = torch.nn.DataParallel(model).cuda()
 
     base_train_loader, n_samples = get_data_loader(data_path, label_path, label_dir,
                                         split='train', dataset_name='nturgbd60', 

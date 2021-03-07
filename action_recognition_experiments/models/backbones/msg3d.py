@@ -187,12 +187,88 @@ class MSG3D(nn.Module):
         return out
 
 
+class MSG3D_EndAtSCGN3(MSG3D):
+
+    def __init__(self,
+                 num_class,
+                 num_point,
+                 num_person,
+                 num_gcn_scales,
+                 num_g3d_scales,
+                 graph,
+                 in_channels=3):
+        super(MSG3D_EndAtSCGN3, self).__init__(num_class, num_point, num_person, num_gcn_scales, num_g3d_scales, graph)
+    
+        del self.tcn3
+        del self.fc
+    
+    def forward(self, x):
+        N, C, T, V, M = x.size()
+        x = x.permute(0, 4, 3, 1, 2).contiguous().view(N, M * V * C, T)
+        x = self.data_bn(x)
+        x = x.view(N * M, V, C, T).permute(0,2,3,1).contiguous()
+
+        # Apply activation to the sum of the pathways
+        x = F.relu(self.sgcn1(x) + self.gcn3d1(x), inplace=True)
+        x = self.tcn1(x)
+
+        x = F.relu(self.sgcn2(x) + self.gcn3d2(x), inplace=True)
+        x = self.tcn2(x)
+
+        x = F.relu(self.sgcn3(x) + self.gcn3d3(x), inplace=True)
+        return x
+
+
+class MSG3D_StartAfterSCGN3(MSG3D):
+
+    def __init__(self,
+                 num_class,
+                 num_point,
+                 num_person,
+                 num_gcn_scales,
+                 num_g3d_scales,
+                 graph,
+                 in_channels=3):
+        super(MSG3D_StartAfterSCGN3, self).__init__(num_class, num_point, num_person, num_gcn_scales, num_g3d_scales, graph)
+
+        del self.data_bn
+        del self.gcn3d1
+        del self.gcn3d2
+        del self.gcn3d3
+        del self.sgcn1
+        del self.sgcn2
+        del self.sgcn3
+        del self.tcn1
+        del self.tcn2
+    
+    def forward(self, x):
+        x = self.tcn3(x)
+
+        out = x
+        out_channels = out.size(1)
+        out = out.view(N, M, out_channels, -1)
+        out = out.mean(3)   # Global Average Pooling (Spatial+Temporal)
+        out = out.mean(1)   # Average pool number of bodies in the sequence
+
+        out = self.fc(out)
+        return out
+
+
 if __name__ == "__main__":
     # For debugging purposes
     import sys
     sys.path.append('..')
 
-    model = Model(
+    def get_name_to_module(model):
+        name_to_module = {}
+        for m in model.named_modules():
+            name_to_module[m[0]] = m[1]
+        return name_to_module
+
+    N, C, T, V, M = 6, 3, 50, 25, 2
+    x = torch.randn(N,C,T,V,M)
+
+    model = MSG3D(
         num_class=60,
         num_point=25,
         num_person=2,
@@ -200,9 +276,34 @@ if __name__ == "__main__":
         num_g3d_scales=6,
         graph='graph.ntu_rgb_d.AdjMatrixGraph'
     )
-
-    N, C, T, V, M = 6, 3, 50, 25, 2
-    x = torch.randn(N,C,T,V,M)
-    model.forward(x)
-
+    output = model.forward(x)
     print('Model total # params:', count_params(model))
+    print(list(get_name_to_module(model).keys()))
+    print(output.shape)
+
+    g = MSG3D_EndAtSCGN3(
+        num_class=60,
+        num_point=25,
+        num_person=2,
+        num_gcn_scales=13,
+        num_g3d_scales=6,
+        graph='graph.ntu_rgb_d.AdjMatrixGraph'
+    )
+    output = g.forward(x)
+    print('g total # params:', count_params(g))
+    print(list(get_name_to_module(g).keys()))
+    print(output.shape)
+
+    f = MSG3D_StartAfterSCGN3(
+        num_class=60,
+        num_point=25,
+        num_person=2,
+        num_gcn_scales=13,
+        num_g3d_scales=6,
+        graph='graph.ntu_rgb_d.AdjMatrixGraph'
+    )
+    f_test = torch.randn(*output.shape)
+    output = f.forward(f_test)
+    print('f total # params:', count_params(f))
+    print(list(get_name_to_module(f).keys()))
+    print(output.shape)

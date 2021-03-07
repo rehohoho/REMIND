@@ -117,9 +117,9 @@ class REMINDModel(object):
         ongoing_class = None
 
         # put classifiers on GPU and set plastic portion of network to train
-        classifier_F = self.classifier_F.cuda()
+        classifier_F = nn.DataParallel(self.classifier_F).cuda()
         classifier_F.train()
-        classifier_G = self.classifier_G.cuda()
+        classifier_G = nn.DataParallel(self.classifier_G).cuda()
         classifier_G.eval()
 
         criterion = nn.CrossEntropyLoss(reduction='none')
@@ -295,9 +295,9 @@ class REMINDModel(object):
         """
         with torch.no_grad():
             self.classifier_F.eval()
-            self.classifier_F.cuda()
+            self.classifier_F = nn.DataParallel(self.classifier_F).cuda()
             self.classifier_G.eval()
-            self.classifier_G.cuda()
+            self.classifier_G = nn.DataParallel(self.classifier_G).cuda()
 
             probas = torch.zeros((len(data_loader.dataset), self.num_classes))
             all_lbls = torch.zeros((len(data_loader.dataset)))
