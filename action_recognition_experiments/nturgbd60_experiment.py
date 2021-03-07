@@ -83,7 +83,7 @@ def streaming(args, remind):
                                                                          args.extract_features_from, args.classifier_ckpt,
                                                                          args.base_arch, args.base_model_args, 
                                                                          args.base_init_classes, args.num_channels, args.num_instances,
-                                                                         args.spatial_feat_dim, args.batch_size)
+                                                                         args.spatial_feat_dim, args.batch_size, args.max_buffer_size)
         pq, latent_dict, rehearsal_ixs, class_id_to_item_ix_dict = fit_pq(feat_data, label_data, item_ix_data,
                                                                           args.num_channels, args.num_instances,
                                                                           args.spatial_feat_dim, args.num_codebooks,

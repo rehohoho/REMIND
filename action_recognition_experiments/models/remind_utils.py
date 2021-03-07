@@ -1,6 +1,7 @@
 import time
 import importlib
 import logging
+import random
 from collections import defaultdict
 
 import numpy as np
@@ -33,7 +34,7 @@ def build_classifier(base_arch, base_model_args, classifier_ckpt):
     return classifier
 
 
-def extract_features(model, data_loader, data_len, num_channels, num_instances, spatial_feat_dim):
+def extract_features(model, data_loader, data_len, num_channels, num_instances, spatial_feat_dim, max_buffer_size):
     """
     Extract image features and put them into arrays.
     :param model: pre-trained model to extract features
@@ -50,18 +51,38 @@ def extract_features(model, data_loader, data_len, num_channels, num_instances, 
     logger.info('Allocating space for %s features, labels, item idxs.' %data_len)
     # allocate space for features and labels
     spatial_dims = [int(i) for i in spatial_feat_dim.split(',')]
-    features_data = np.empty((num_instances*data_len, num_channels, *spatial_dims), dtype=np.float32)
-    labels_data = np.empty((data_len, 1), dtype=np.int)
-    item_ixs_data = np.empty((data_len, 1), dtype=np.int)
 
+    if num_instances*data_len < max_buffer_size:
+        features_data = np.empty((num_instances*data_len, num_channels, *spatial_dims), dtype=np.float32)
+        labels_data = np.empty((data_len, 1), dtype=np.int)
+        item_ixs_data = np.empty((data_len, 1), dtype=np.int)
+    else:
+        features_data = np.empty((max_buffer_size, num_channels, *spatial_dims), dtype=np.float32)
+        labels_data = np.empty((max_buffer_size//num_instances, 1), dtype=np.int)
+        item_ixs_data = np.empty((max_buffer_size//num_instances, 1), dtype=np.int)
+    
     logger.info('Encoding features and labels into arrays.')
     # put features and labels into arrays
     feat_start_ix = 0
     label_start_ix = 0
+    reached_max_buffer = False
     for batch_ix, (batch_x, batch_y, batch_item_ixs) in enumerate(data_loader):
         batch_feats = model(batch_x.cuda())
-        feat_end_ix = feat_start_ix + len(batch_feats)
-        label_end_ix = label_start_ix + len(batch_feats)//num_instances # expects model to fuse N*M
+        
+        # !! assumes max buffer size is divisible by batch size
+        if feat_start_ix >= max_buffer_size and not reached_max_buffer:
+            reached_max_buffer = True
+        if reached_max_buffer:
+            feat_start_ix = random.choice(range(0, max_buffer_size-len(batch_feats), 2))
+            label_start_ix = feat_start_ix // 2
+            feat_end_ix = feat_start_ix + len(batch_feats)
+            label_end_ix = label_start_ix + len(batch_feats)//num_instances # expects model to fuse N*M
+        else:
+            feat_end_ix = feat_start_ix + len(batch_feats)
+            label_end_ix = label_start_ix + len(batch_feats)//num_instances # expects model to fuse N*M
+        
+        logger.info('Encoding ... batch %s/%s, feat idx %s-%s/%s label idx %s-%s/%s' %(
+            batch_ix, len(data_loader), feat_start_ix, feat_end_ix, len(features_data), label_start_ix, label_end_ix, len(labels_data)))
         
         features_data[feat_start_ix:feat_end_ix] = batch_feats.cpu().numpy()
         labels_data[label_start_ix:label_end_ix] = np.atleast_2d(batch_y.numpy().astype(np.int)).transpose()
@@ -69,8 +90,6 @@ def extract_features(model, data_loader, data_len, num_channels, num_instances, 
         
         feat_start_ix = feat_end_ix
         label_start_ix = label_end_ix
-
-        logger.info('Encoding ... %s/%s' %(label_start_ix, data_len)) 
     
     logger.info('Done')
 
@@ -79,7 +98,7 @@ def extract_features(model, data_loader, data_len, num_channels, num_instances, 
 
 def extract_base_init_features(data_path, label_path, label_dir, 
                                extract_features_from, classifier_ckpt, arch, arch_args,
-                               max_class, num_channels, num_instances, spatial_feat_dim, batch_size):
+                               max_class, num_channels, num_instances, spatial_feat_dim, batch_size, max_buffer_size):
     core_model = build_classifier(arch, arch_args, classifier_ckpt)
 
     model = ModelWrapper(core_model, output_layer_names=[extract_features_from], return_single=True)
@@ -92,7 +111,7 @@ def extract_base_init_features(data_path, label_path, label_dir,
 
     base_train_features, base_train_labels, base_item_ixs = extract_features(model, base_train_loader, n_samples,
                                                                              num_channels=num_channels, num_instances=num_instances,
-                                                                             spatial_feat_dim=spatial_feat_dim)
+                                                                             spatial_feat_dim=spatial_feat_dim, max_buffer_size=max_buffer_size)
     return base_train_features, base_train_labels, base_item_ixs
 
 
