@@ -123,6 +123,7 @@ class MSG3D(nn.Module):
                  graph,
                  in_channels=3):
         super(MSG3D, self).__init__()
+        self.num_person = num_person
 
         Graph = import_class(graph)
         A_binary = Graph().A_binary
@@ -242,11 +243,12 @@ class MSG3D_StartAfterSCGN3(MSG3D):
         del self.tcn2
     
     def forward(self, x):
+        N, C, T, V = x.size() # e.g. 64, 384, 25, 75
         x = self.tcn3(x)
 
         out = x
         out_channels = out.size(1)
-        out = out.view(N, M, out_channels, -1)
+        out = out.view(N//self.num_person, self.num_person, out_channels, -1)
         out = out.mean(3)   # Global Average Pooling (Spatial+Temporal)
         out = out.mean(1)   # Average pool number of bodies in the sequence
 

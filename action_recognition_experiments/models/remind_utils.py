@@ -76,10 +76,10 @@ def extract_features(model, data_loader, data_len, num_channels, num_instances, 
             feat_start_ix = random.choice(range(0, max_buffer_size-len(batch_feats), 2))
             label_start_ix = feat_start_ix // 2
             feat_end_ix = feat_start_ix + len(batch_feats)
-            label_end_ix = label_start_ix + len(batch_feats)//num_instances # expects model to fuse N*M
+            label_end_ix = label_start_ix + len(batch_y)
         else:
             feat_end_ix = feat_start_ix + len(batch_feats)
-            label_end_ix = label_start_ix + len(batch_feats)//num_instances # expects model to fuse N*M
+            label_end_ix = label_start_ix + len(batch_y)
         
         logger.info('Encoding ... batch %s/%s, feat idx %s-%s/%s label idx %s-%s/%s' %(
             batch_ix, len(data_loader), feat_start_ix, feat_end_ix, len(features_data), label_start_ix, label_end_ix, len(labels_data)))
