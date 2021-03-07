@@ -1,6 +1,7 @@
 import pickle
 import os
 import sys
+import logging
 
 import numpy as np
 import torch
@@ -10,6 +11,7 @@ from torch.utils.data import Dataset
 from feeders import tools
 
 sys.path.extend(['../'])
+logger = logging.getLogger(__name__)
 
 
 def filter_by_class(labels, min_class, max_class):
@@ -37,6 +39,7 @@ def get_data_loader(data_path, label_path, label_dir,
         _labels = np.load(
             os.path.join(label_dir, '{}_{}_labels.npy'.format(dataset_name, split)))
         idxs = filter_by_class(_labels, min_class=min_class, max_class=max_class)
+        logger.info(f'min {min_class} max {max_class} classes {np.unique(_labels[idxs])}')
 
     if batch_sampler is None and sampler is None:
         if shuffle:
@@ -46,7 +49,7 @@ def get_data_loader(data_path, label_path, label_dir,
         batch_sampler = torch.utils.data.sampler.BatchSampler(sampler, batch_size=batch_size, drop_last=False)
 
     loader = torch.utils.data.DataLoader(dataset, num_workers=num_workers, batch_sampler=batch_sampler)
-    print('\nLoading the ' + split + ' data ... ({} samples)'.format(len(idxs)))
+    logger.info('\nLoading the ' + split + ' data ... ({} samples)'.format(len(idxs)))
     
     return loader, len(idxs)
 

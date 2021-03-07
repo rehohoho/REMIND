@@ -199,7 +199,7 @@ class REMINDModel(object):
 
                     # fit on replay mini-batch plus new sample
                     output = classifier_F(data.cuda())
-                    logger.info(f'\n\n{output.argmax(axis=-1)}\n{labels_a}\n{labels_b}\n{output.shape}')
+                    # logger.info(f'\n\n{output.argmax(axis=-1)}\n{labels_a}\n{labels_b}\n{output.shape}')
                     loss = self.mixup_criterion(criterion, output, labels_a.cuda(), labels_b.cuda(), lam)
                 else:
                     # gather previous data for replay
@@ -305,6 +305,7 @@ class REMINDModel(object):
             for batch_ix, batch in enumerate(data_loader):
                 batch_x, batch_lbls = batch[0], batch[1]
                 batch_x = batch_x.cuda()
+                # logger.info(f'input {batch_x.shape} labels {batch_lbls}')
 
                 # get G features
                 data_batch = self.classifier_G(batch_x).cpu().numpy()
