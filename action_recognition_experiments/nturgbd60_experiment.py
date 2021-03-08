@@ -15,12 +15,12 @@ torch.multiprocessing.set_sharing_strategy('file_system')
 def get_dataloader(args, split, min_class, max_class):
     if split == 'val':
         loader, _ = get_data_loader(args.val_data_path, args.val_label_path, args.label_dir,
-                                    split='val', dataset_name='nturgbd60', 
+                                    split='val', dataset_name=args.dataset_name, 
                                     min_class=min_class, max_class=max_class, shuffle=False, 
                                     batch_size=args.batch_size, num_workers=args.batch_size)
     elif split == 'train':
         loader, _ = get_data_loader(args.train_data_path, args.train_label_path, args.label_dir,
-                                    split='train', dataset_name='nturgbd60', 
+                                    split='train', dataset_name=args.dataset_name, 
                                     min_class=min_class, max_class=max_class, shuffle=False, 
                                     batch_size=args.batch_size, num_workers=args.batch_size)
     return loader
@@ -79,7 +79,7 @@ def streaming(args, remind):
         update_accuracies(args, curr_max_class=args.streaming_min_class, remind=remind, pq=pq, accuracies=accuracies)
     else:
         logger.info('\nPerforming base initialization...')
-        feat_data, label_data, item_ix_data = extract_base_init_features(args.train_data_path, args.train_label_path, args.label_dir,
+        feat_data, label_data, item_ix_data = extract_base_init_features(args.train_data_path, args.train_label_path, args.label_dir, args.dataset_name,
                                                                          args.extract_features_from, args.classifier_ckpt,
                                                                          args.base_arch, args.base_model_args, 
                                                                          args.base_init_classes, args.num_channels, args.num_instances,
@@ -134,6 +134,7 @@ if __name__ == '__main__':
     # directories and names
     parser.add_argument('--expt_name', type=str)  # name of the experiment
     parser.add_argument('--label_dir', type=str, default=None)  # directory for numpy label files
+    parser.add_argument('--dataset_name', type=str, default='nturgbd60')
     parser.add_argument('--train_data_path')
     parser.add_argument('--train_label_path')
     parser.add_argument('--val_data_path')

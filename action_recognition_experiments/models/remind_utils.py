@@ -96,7 +96,7 @@ def extract_features(model, data_loader, data_len, num_channels, num_instances, 
     return features_data, labels_data, item_ixs_data
 
 
-def extract_base_init_features(data_path, label_path, label_dir, 
+def extract_base_init_features(data_path, label_path, label_dir, dataset_name,
                                extract_features_from, classifier_ckpt, arch, arch_args,
                                max_class, num_channels, num_instances, spatial_feat_dim, batch_size, max_buffer_size):
     core_model = build_classifier(arch, arch_args, classifier_ckpt)
@@ -105,8 +105,8 @@ def extract_base_init_features(data_path, label_path, label_dir,
     model = torch.nn.DataParallel(model).cuda()
 
     base_train_loader, n_samples = get_data_loader(data_path, label_path, label_dir,
-                                        split='train', dataset_name='nturgbd60', 
-                                        min_class=0, max_class=max_class, shuffle=False, 
+                                        split='train', dataset_name=dataset_name, 
+                                        min_class=0, max_class=max_class, shuffle=True, 
                                         batch_size=batch_size, num_workers=batch_size)
 
     base_train_features, base_train_labels, base_item_ixs = extract_features(model, base_train_loader, n_samples,

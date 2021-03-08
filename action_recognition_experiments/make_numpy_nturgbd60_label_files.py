@@ -76,19 +76,19 @@ def main(args):
     lines = [int(i) for i in lines]
     print(f'\nloading user desired order {args.class_order_text_file} done. Labels found {lines}')
 
-    save_path = os.path.join(args.labels_dir, 'nturgbd60_train_labels')
+    save_path = os.path.join(args.labels_dir, 'nturgbd60xview_train_labels')
     generate_index_npy(l_tr, lines, save_path)
-    save_path = os.path.join(args.labels_dir, 'nturgbd60_val_labels')
+    save_path = os.path.join(args.labels_dir, 'nturgbd60xview_val_labels')
     generate_index_npy(l_te, lines, save_path)
 
 
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
-    parser.add_argument('--l_tr_path', default='../../2s-AGCN/data/ntu/xsub/train_label.pkl', help='nturgbd60 testing data .npy')
-    parser.add_argument('--l_te_path', default='../../2s-AGCN/data/ntu/xsub/val_label.pkl', help='nturgbd60 testing labels .pkl')
+    parser.add_argument('--l_tr_path', default='/home/ltj/codes/MS-G3D/data/ntu_60/xview/train_label.pkl', help='nturgbd60 testing data .npy')
+    parser.add_argument('--l_te_path', default='/home/ltj/codes/MS-G3D/data/ntu_60/xview/val_label.pkl', help='nturgbd60 testing labels .pkl')
     parser.add_argument('--labels_dir', type=str, default='./files/indices')
-    parser.add_argument('--class_order_text_file', type=str, default='./files/nturgbd60_class_order.txt')
+    parser.add_argument('--class_order_text_file', type=str, default='./files/nturgbd60_class_order_50_10.txt')
     args = parser.parse_args()
 
     main(args)

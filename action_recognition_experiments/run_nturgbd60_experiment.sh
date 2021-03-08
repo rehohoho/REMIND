@@ -6,16 +6,15 @@ export PYTHONPATH=${PROJ_ROOT}
 export KMP_DUPLICATE_LIB_OK=TRUE
 cd ${PROJ_ROOT}/action_recognition_experiments
 
-DATA_TYPE=joint
-NTURGBD60_ROOT=/home/ruien/2s-AGCN/data/ntu/xsub ##
-EXPT_NAME=ntu60xsub${DATA_TYPE}
-GPU=0 ##
+NTURGBD60_ROOT=/home/ltj/codes/MS-G3D/data/ntu_60/$1 ##
+EXPT_NAME=ntu60$1$2_shuffled
+GPU=$3 ##
 
 
 CODEBOOK_SIZE=256
 NUM_CODEBOOKS=32
 REPLAY_SAMPLES=15 # batch number -1
-MAX_BUFFER_SIZE=959665
+MAX_BUFFER_SIZE=6016 # divisible by batch size
 
 BASE_INIT_CLASSES=50 # 6
 CLASS_INCREMENT=1 # 6
@@ -30,9 +29,10 @@ export CUDA_VISIBLE_DEVICES=${GPU}
 python -u nturgbd60_experiment.py \
 --expt_name ${EXPT_NAME} \
 --label_dir ${LABEL_ORDER_DIR} \
---train_data_path=${NTURGBD60_ROOT}/train_data_${DATA_TYPE}.npy \
+--dataset_name nturgbd60$1 \
+--train_data_path=${NTURGBD60_ROOT}/train_data_$2.npy \
 --train_label_path=${NTURGBD60_ROOT}/train_label.pkl \
---val_data_path=${NTURGBD60_ROOT}/val_data_${DATA_TYPE}.npy \
+--val_data_path=${NTURGBD60_ROOT}/val_data_$2.npy \
 --val_label_path=${NTURGBD60_ROOT}/val_label.pkl \
 --base_arch "MSG3D_EndAtSCGN3" \
 --base_model_args "{num_class: 60, num_point: 25, num_person: 2, num_gcn_scales: 13, num_g3d_scales: 6, graph: graph.ntu_rgb_d.AdjMatrixGraph}" \
