@@ -18,7 +18,7 @@ import torch.optim
 import torch.multiprocessing as mp
 import torch.utils.data
 from torch.autograd import Variable
-from action_recognition_experiments.feeders.feeder import Feeder
+from action_recognition_experiments.feeders.feeder import get_data_loader
 
 parser = argparse.ArgumentParser(description='PyTorch NTURGBD60 Training')
 parser.add_argument('-a', '--arch', metavar='ARCH', default='ResNet18ClassifyAfterLayer4_1')
@@ -28,6 +28,7 @@ parser.add_argument('--ckpt_file', type=str, default='ResNet18ClassifyAfterLayer
 parser.add_argument('--save_dir', type=str, default='nturgbd60_2sagcn_ckpts')
 parser.add_argument('--base_max_class', type=int, default=6)
 parser.add_argument('--labels_dir', type=str, default='nturgbd60_indices')
+parser.add_argument('--dataset_name', type=str, default='nturgbd60')
 parser.add_argument('--train_data_path')
 parser.add_argument('--train_label_path')
 parser.add_argument('--val_data_path')
@@ -135,7 +136,7 @@ def main_worker(gpu, ngpus_per_node, args):
                                 world_size=args.world_size, rank=args.rank)
     
     model_args = yaml.load(args.model_args, Loader=yaml.FullLoader)
-    model = getattr(importlib.import_module('models.agcn'), args.arch)(*model_args.values())
+    model = getattr(importlib.import_module('models.backbones'), args.arch)(*model_args.values())
     logger.info(model.__str__())
 
     if args.distributed:
@@ -194,20 +195,16 @@ def main_worker(gpu, ngpus_per_node, args):
     cudnn.benchmark = True
 
     # CHANGED HERE
-    logger.info('\nloading the data...')
-    train_dataset = Feeder(data_path=args.train_data_path, label_path=args.train_label_path)
-    train_idx = list(np.arange(len(train_dataset))[np.array(train_dataset.label) < args.base_max_class])
-    logger.info('len train base-init loader %s' %(len(train_idx)))
-    train_sampler = torch.utils.data.sampler.SubsetRandomSampler(train_idx)
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=args.batch_size, num_workers=args.workers, pin_memory=True, sampler=train_sampler)
-
-    val_dataset = Feeder(data_path=args.val_data_path, label_path=args.val_label_path)
-    val_idx = list(np.arange(len(val_dataset))[np.array(val_dataset.label) < args.base_max_class])
-    logger.info('len val base-init loader %s' %(len(val_idx)))
-    val_sampler = torch.utils.data.sampler.SubsetRandomSampler(val_idx)
-    val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, num_workers=args.workers,
-                                             pin_memory=True, sampler=val_sampler)
+    # train_sampler = torch.utils.data.sampler.SubsetRandomSampler(train_idx)
+    train_loader, _ = get_data_loader(args.train_data_path, args.train_label_path, args.labels_dir,
+                                split='train', dataset_name=args.dataset_name, 
+                                min_class=0, max_class=args.base_max_class, shuffle=False, 
+                                batch_size=args.batch_size, num_workers=args.batch_size)
+    # val_sampler = torch.utils.data.sampler.SubsetRandomSampler(val_idx)
+    val_loader, _ = get_data_loader(args.val_data_path, args.val_label_path, args.labels_dir,
+                                    split='val', dataset_name=args.dataset_name, 
+                                    min_class=0, max_class=args.base_max_class, shuffle=False, 
+                                    batch_size=args.batch_size, num_workers=args.batch_size)
 
     if args.evaluate:
         validate(val_loader, model, criterion, args)
