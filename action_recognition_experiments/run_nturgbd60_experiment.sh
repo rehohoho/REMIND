@@ -14,10 +14,10 @@ GPU=$3 ##
 CODEBOOK_SIZE=256
 NUM_CODEBOOKS=32
 REPLAY_SAMPLES=15 # batch number -1
-MAX_BUFFER_SIZE=6016 # divisible by batch size
+MAX_BUFFER_SIZE=12000 # divisible by batch size
 
 BASE_INIT_CLASSES=50 # 6
-CLASS_INCREMENT=1 # 6
+CLASS_INCREMENT=10 # 6
 NUM_CLASSES=60
 BASE_INIT_CKPT=./files/50c210c_pretrained_without_blocks.pt # base init ckpt file
 LABEL_ORDER_DIR=./files/indices # location of numpy label files
@@ -51,8 +51,8 @@ python -u nturgbd60_experiment.py \
 --max_buffer_size ${MAX_BUFFER_SIZE} \
 --lr_mode step_lr_per_class \
 --lr_step_size 100 \
---start_lr 0.1 \
---end_lr 0.1 \
+--start_lr 0.05 \
+--end_lr 0.05 \
 --use_mixup \
 --mixup_alpha .1 \
 --num_classes ${NUM_CLASSES} \
