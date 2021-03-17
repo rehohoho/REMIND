@@ -17,7 +17,7 @@ REPLAY_SAMPLES=15 # batch number -1
 MAX_BUFFER_SIZE=12000 # divisible by batch size
 
 BASE_INIT_CLASSES=50 # 6
-CLASS_INCREMENT=10 # 6
+CLASS_INCREMENT=1 # 6
 NUM_CLASSES=60
 BASE_INIT_CKPT=./files/50c210c_pretrained_without_blocks.pt # base init ckpt file
 LABEL_ORDER_DIR=./files/indices # location of numpy label files
@@ -35,9 +35,9 @@ python -u nturgbd60_experiment.py \
 --val_data_path=${NTURGBD60_ROOT}/val_data_$2.npy \
 --val_label_path=${NTURGBD60_ROOT}/val_label.pkl \
 --base_arch "MSG3D_EndAtSCGN3" \
---base_model_args "{num_class: 60, num_point: 25, num_person: 2, num_gcn_scales: 13, num_g3d_scales: 6, graph: graph.ntu_rgb_d.AdjMatrixGraph}" \
+--base_model_args "{num_class: ${NUM_CLASSES}, num_point: 25, num_person: 2, num_gcn_scales: 13, num_g3d_scales: 6, graph: graph.ntu_rgb_d.AdjMatrixGraph}" \
 --classifier "MSG3D_StartAfterSCGN3" \
---classifier_model_args "{num_class: 60, num_point: 25, num_person: 2, num_gcn_scales: 13, num_g3d_scales: 6, graph: graph.ntu_rgb_d.AdjMatrixGraph}" \
+--classifier_model_args "{num_class: ${NUM_CLASSES}, num_point: 25, num_person: 2, num_gcn_scales: 13, num_g3d_scales: 6, graph: graph.ntu_rgb_d.AdjMatrixGraph}" \
 --classifier_ckpt ${BASE_INIT_CKPT} \
 --extract_features_from sgcn3.2 \
 --num_channels 384 \
